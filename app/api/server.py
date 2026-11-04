@@ -94,6 +94,20 @@ class VoiceCreateRequest(BaseModel):
     consent_confirmed: bool = False
 
 
+class BatchItemIn(BaseModel):
+    text: str
+    filename: str = ""
+
+
+class BatchRequest(BaseModel):
+    voice_id: int
+    engine_name: str
+    items: List[BatchItemIn]
+    params: SynthesisParamsIn = Field(default_factory=SynthesisParamsIn)
+    sentence_pause_ms: int = Field(250, ge=0, le=5000)
+    output_dir: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Serialization helpers
 # ---------------------------------------------------------------------------
@@ -247,6 +261,67 @@ def _format_eta(seconds: float) -> str:
     return f"{int(seconds // 60)}m {int(seconds % 60)}s"
 
 
+class RenderCancelled(Exception):
+    """Raised inside a render loop when the job was cancelled."""
+
+
+def _render_chunks(
+    engine: TTSEngine,
+    profile: VoiceProfile,
+    text: str,
+    params: SynthesisParameters,
+    sentence_pause_ms: int,
+    cancel_event: threading.Event,
+    on_message=None,
+    on_chunk_start=None,
+    on_chunk_done=None,
+) -> Tuple[Any, int]:
+    """Renders text into one stitched waveform.
+
+    Shared by the single-render job and the batch queue so both produce the
+    exact same audio (same chunking, crossfades and sentence pauses).
+    """
+    chunks = TextChunker.chunk_text(
+        text, max_chars_per_chunk=config_manager.config.max_chars_per_chunk
+    )
+    if not chunks:
+        raise ValueError("Input text is empty or invalid.")
+
+    reference_path = profile.primary_audio_path or ""
+    rendered: List[Any] = []
+    sample_rate = engine.native_sample_rate
+    chunk_times: List[float] = []
+
+    for index, chunk_text in enumerate(chunks):
+        if cancel_event.is_set():
+            raise RenderCancelled()
+        if on_chunk_start is not None:
+            on_chunk_start(index, len(chunks))
+        chunk_start = time.time()
+        with engine.lock:
+            audio, sample_rate = engine.synthesize_chunk(
+                text=chunk_text,
+                reference_audio_path=reference_path,
+                params=params,
+            )
+        rendered.append(np.asarray(audio, dtype=np.float32) if np is not None else audio)
+        chunk_times.append(time.time() - chunk_start)
+        if on_chunk_done is not None:
+            on_chunk_done(index, len(chunks), sum(chunk_times) / len(chunk_times))
+
+    if cancel_event.is_set():
+        raise RenderCancelled()
+
+    if on_message is not None:
+        on_message("Stitching audio chunks with crossfades")
+    stitched = SynthesisWorker._stitch_chunks_with_crossfade(
+        rendered,
+        sample_rate=sample_rate,
+        pause_ms=sentence_pause_ms,
+    )
+    return stitched, sample_rate
+
+
 class JobManager:
     """Runs synthesis on a background thread and exposes pollable status."""
 
@@ -338,54 +413,33 @@ class JobManager:
                 job.message = "Cancelled"
                 return
 
-            chunks = TextChunker.chunk_text(
-                text, max_chars_per_chunk=config_manager.config.max_chars_per_chunk
-            )
-            if not chunks:
-                raise ValueError("Input text is empty or invalid.")
-            job.total_chunks = len(chunks)
-
-            reference_path = profile.primary_audio_path or ""
-            rendered: List[Any] = []
-            sample_rate = engine.native_sample_rate
-            chunk_times: List[float] = []
-
-            for index, chunk_text in enumerate(chunks):
-                if job.cancel_event.is_set():
-                    job.state = "cancelled"
-                    job.message = "Cancelled"
-                    return
-
-                job.message = f"Synthesizing sentence {index + 1} of {len(chunks)}"
+            def on_chunk_start(index: int, total: int) -> None:
+                job.message = f"Synthesizing sentence {index + 1} of {total}"
                 job.current_chunk = index
-                chunk_start = time.time()
 
-                with engine.lock:
-                    audio, sample_rate = engine.synthesize_chunk(
-                        text=chunk_text,
-                        reference_audio_path=reference_path,
-                        params=params,
-                    )
-                rendered.append(np.asarray(audio, dtype=np.float32) if np is not None else audio)
-
-                chunk_times.append(time.time() - chunk_start)
-                average = sum(chunk_times) / len(chunk_times)
-                remaining = len(chunks) - (index + 1)
+            def on_chunk_done(index: int, total: int, average: float) -> None:
+                remaining = total - (index + 1)
                 job.eta = _format_eta(remaining * average)
                 job.current_chunk = index + 1
-                job.progress = round(((index + 1) / len(chunks)) * 100.0, 2)
+                job.progress = round(((index + 1) / total) * 100.0, 2)
 
-            if job.cancel_event.is_set():
+            try:
+                stitched, sample_rate = _render_chunks(
+                    engine=engine,
+                    profile=profile,
+                    text=text,
+                    params=params,
+                    sentence_pause_ms=sentence_pause_ms,
+                    cancel_event=job.cancel_event,
+                    on_message=lambda message: setattr(job, "message", message),
+                    on_chunk_start=on_chunk_start,
+                    on_chunk_done=on_chunk_done,
+                )
+            except RenderCancelled:
                 job.state = "cancelled"
                 job.message = "Cancelled"
                 return
-
-            job.message = "Stitching audio chunks with crossfades"
-            stitched = SynthesisWorker._stitch_chunks_with_crossfade(
-                rendered,
-                sample_rate=sample_rate,
-                pause_ms=sentence_pause_ms,
-            )
+            job.total_chunks = max(job.total_chunks, 1)
 
             output_path = paths.history_dir / f"synth_{int(time.time() * 1000)}.wav"
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -427,7 +481,7 @@ class JobManager:
                 job.id,
                 time.time() - started,
                 duration,
-                len(chunks),
+                job.total_chunks,
             )
         except Exception as exc:  # noqa: BLE001 - surfaced to the UI as job.error
             logger.exception("Synthesis job %s failed", job.id)
@@ -450,6 +504,257 @@ class JobManager:
 
 
 job_manager = JobManager()
+
+
+# ---------------------------------------------------------------------------
+# Batch manager
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class BatchItemState:
+    index: int
+    filename: str
+    text: str
+    state: str = "pending"
+    duration_seconds: float = 0.0
+    audio_url: Optional[str] = None
+    audio_path: Optional[str] = None
+    history_id: Optional[int] = None
+    error: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "index": self.index,
+            "filename": self.filename,
+            "text": self.text,
+            "state": self.state,
+            "duration_seconds": self.duration_seconds,
+            "audio_url": self.audio_url,
+            "history_id": self.history_id,
+            "error": self.error,
+        }
+
+
+@dataclass
+class BatchJob:
+    id: str
+    items: List[BatchItemState]
+    state: str = "queued"
+    progress: float = 0.0
+    message: str = "Queued"
+    error: Optional[str] = None
+    eta: str = ""
+    output_dir: Optional[str] = None
+    completed: int = 0
+    failed: int = 0
+    current_index: int = 0
+    created_at: float = field(default_factory=time.time)
+    cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
+
+    @property
+    def total(self) -> int:
+        return len(self.items)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "state": self.state,
+            "progress": self.progress,
+            "message": self.message,
+            "error": self.error,
+            "eta": self.eta,
+            "total": self.total,
+            "completed": self.completed,
+            "failed": self.failed,
+            "current_index": self.current_index,
+            "items": [item.to_dict() for item in self.items],
+            "output_dir": self.output_dir,
+        }
+
+
+class BatchManager:
+    """Renders a queue of scripts one file at a time on a background thread."""
+
+    def __init__(self, max_jobs: int = 50) -> None:
+        self._jobs: Dict[str, BatchJob] = {}
+        self._lock = threading.Lock()
+        self._max_jobs = max_jobs
+
+    def create(
+        self,
+        engine: TTSEngine,
+        profile: VoiceProfile,
+        items: List[BatchItemState],
+        params: SynthesisParameters,
+        sentence_pause_ms: int,
+        output_dir: Optional[str] = None,
+    ) -> BatchJob:
+        job = BatchJob(id=uuid.uuid4().hex, items=items, output_dir=output_dir)
+        job.message = "Queued"
+        with self._lock:
+            self._jobs[job.id] = job
+            self._prune_locked()
+
+        thread = threading.Thread(
+            target=self._run,
+            args=(job, engine, profile, params, sentence_pause_ms),
+            name=f"batch-{job.id[:8]}",
+            daemon=True,
+        )
+        thread.start()
+        return job
+
+    def get(self, job_id: str) -> Optional[BatchJob]:
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def cancel(self, job_id: str) -> Optional[BatchJob]:
+        with self._lock:
+            job = self._jobs.get(job_id)
+        if job is None:
+            return None
+        job.cancel_event.set()
+        if job.state == "queued":
+            job.state = "cancelled"
+            job.message = "Cancelled before start"
+        else:
+            job.message = "Cancelling"
+        for item in job.items:
+            if item.state == "pending":
+                item.state = "cancelled"
+        logger.info("Cancellation requested for batch %s", job_id)
+        return job
+
+    def _prune_locked(self) -> None:
+        if len(self._jobs) <= self._max_jobs:
+            return
+        finished = [
+            job for job in self._jobs.values() if job.state in {"done", "failed", "cancelled"}
+        ]
+        finished.sort(key=lambda item: item.created_at)
+        for job in finished[: max(0, len(self._jobs) - self._max_jobs)]:
+            self._jobs.pop(job.id, None)
+
+    def _resolve_output_dir(self, output_dir: Optional[str]) -> Path:
+        if output_dir:
+            candidate = Path(output_dir).expanduser()
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return candidate
+            except OSError as exc:
+                logger.warning("Could not use output folder %s: %s", candidate, exc)
+        return paths.history_dir
+
+    def _run(
+        self,
+        job: BatchJob,
+        engine: TTSEngine,
+        profile: VoiceProfile,
+        params: SynthesisParameters,
+        sentence_pause_ms: int,
+    ) -> None:
+        started = time.time()
+        directory = self._resolve_output_dir(job.output_dir)
+        durations: List[float] = []
+
+        try:
+            job.state = "running"
+            job.message = f"Preparing speech model ({engine.name})"
+            with engine.lock:
+                if not engine.is_loaded() and not engine.load_model():
+                    raise RuntimeError(f"Could not load the {engine.name} model.")
+
+            for index, item in enumerate(job.items):
+                if job.cancel_event.is_set():
+                    job.state = "cancelled"
+                    job.message = "Cancelled"
+                    break
+
+                job.current_index = index
+                job.message = f"Rendering line {index + 1} of {job.total}: {item.filename}"
+                item.state = "running"
+
+                try:
+                    stitched, sample_rate = _render_chunks(
+                        engine=engine,
+                        profile=profile,
+                        text=item.text,
+                        params=params,
+                        sentence_pause_ms=sentence_pause_ms,
+                        cancel_event=job.cancel_event,
+                    )
+
+                    duration = float(len(stitched) / sample_rate) if sample_rate else 0.0
+                    output_path = directory / item.filename
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        import soundfile as sf
+
+                        sf.write(str(output_path), stitched, sample_rate)
+                    except Exception as exc:  # noqa: BLE001 - reported per item
+                        raise RuntimeError(f"Could not write the rendered WAV: {exc}") from exc
+
+                    entry = history_repo.add_entry(
+                        HistoryEntry(
+                            voice_id=profile.id,
+                            voice_name=profile.name,
+                            engine_name=engine.name,
+                            prompt_text=item.text,
+                            parameters_json=json.dumps(asdict(params), default=str),
+                            seed=params.seed,
+                            audio_path=str(output_path),
+                            duration_seconds=duration,
+                            sample_rate=int(sample_rate),
+                        )
+                    )
+
+                    item.state = "done"
+                    item.duration_seconds = round(duration, 3)
+                    item.audio_path = str(output_path)
+                    item.audio_url = f"/api/history/{entry.id}/audio"
+                    item.history_id = entry.id
+                    job.completed += 1
+
+                    durations.append(time.time() - started)
+                    average = sum(durations) / len(durations)
+                    remaining = job.total - (index + 1)
+                    job.eta = _format_eta(remaining * average)
+                except RenderCancelled:
+                    item.state = "cancelled"
+                    job.state = "cancelled"
+                    job.message = "Cancelled"
+                    break
+                except Exception as exc:  # noqa: BLE001 - one bad line must not stop the queue
+                    logger.exception("Batch line %s failed", item.filename)
+                    item.state = "failed"
+                    item.error = str(exc)
+                    job.failed += 1
+
+                job.progress = round(((index + 1) / job.total) * 100.0, 2)
+
+            if job.state != "cancelled":
+                job.state = "done"
+                job.progress = 100.0
+                job.eta = "0s"
+                job.message = (
+                    f"Rendered {job.completed} of {job.total} lines in "
+                    f"{time.time() - started:.1f}s"
+                )
+            logger.info(
+                "Batch %s finished: %d rendered, %d failed",
+                job.id,
+                job.completed,
+                job.failed,
+            )
+        except Exception as exc:  # noqa: BLE001 - surfaced to the UI as job.error
+            logger.exception("Batch job %s failed", job.id)
+            job.state = "failed"
+            job.error = str(exc)
+            job.message = "Batch failed"
+
+
+batch_manager = BatchManager()
 
 
 # ---------------------------------------------------------------------------
@@ -726,6 +1031,63 @@ def history_audio(entry_id: int) -> FileResponse:
     return FileResponse(entry.audio_path)
 
 
+# Waveform peaks for finished renders, cached by (path, mtime, size).
+_PEAKS_CACHE: Dict[str, Tuple[float, int, List[float]]] = {}
+_PEAKS_CACHE_LIMIT = 128
+
+
+@app.get("/api/history/{entry_id}/peaks")
+def history_peaks(entry_id: int) -> Dict[str, Any]:
+    """Returns the waveform of a finished render.
+
+    The History screen draws a mini waveform in every row. Computing it from
+    the stored WAV is cheap, but decoding the same file on every hover is
+    not, so the result is cached until the file changes.
+    """
+    entry = history_repo.get_entry_by_id(entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="History entry not found")
+    path = entry.audio_path
+    if not path or not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Rendered audio file is missing")
+
+    try:
+        stat = os.stat(path)
+    except OSError as exc:
+        raise HTTPException(status_code=404, detail="Rendered audio file is missing") from exc
+
+    key = os.path.abspath(path)
+    cached = _PEAKS_CACHE.get(key)
+    if cached and cached[0] == stat.st_mtime and cached[1] == stat.st_size:
+        return {
+            "id": entry_id,
+            "peaks": cached[2],
+            "duration_seconds": entry.duration_seconds,
+            "sample_rate": entry.sample_rate,
+        }
+
+    peaks: List[float] = []
+    try:
+        import soundfile as sf
+
+        audio, sample_rate = sf.read(path, dtype="float32", always_2d=False)
+        peaks = compute_peaks(audio)
+    except Exception as exc:  # noqa: BLE001 - a missing codec must not break the list
+        logger.warning("Could not compute peaks for %s: %s", path, exc)
+        peaks = []
+
+    if len(_PEAKS_CACHE) >= _PEAKS_CACHE_LIMIT:
+        _PEAKS_CACHE.clear()
+    _PEAKS_CACHE[key] = (stat.st_mtime, stat.st_size, peaks)
+
+    return {
+        "id": entry_id,
+        "peaks": peaks,
+        "duration_seconds": entry.duration_seconds,
+        "sample_rate": entry.sample_rate,
+    }
+
+
 @app.get("/api/models")
 def list_models() -> List[Dict[str, Any]]:
     models_dir = config_manager.get_models_directory()
@@ -860,6 +1222,82 @@ def job_audio(job_id: str) -> FileResponse:
     if job.state != "done" or not job.audio_path or not os.path.exists(job.audio_path):
         raise HTTPException(status_code=404, detail="Job audio is not ready")
     return FileResponse(job.audio_path)
+
+
+@app.post("/api/batch")
+def start_batch(payload: BatchRequest) -> Dict[str, Any]:
+    """Queues a whole script file: one rendered file per line."""
+    lines = [item for item in payload.items if item.text.strip()]
+    if not lines:
+        raise HTTPException(status_code=400, detail="The batch queue is empty")
+
+    profile = voice_repo.get_profile_by_id(payload.voice_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Voice profile not found")
+
+    engine = engine_registry.get_engine(payload.engine_name)
+    if engine is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unknown engine '{payload.engine_name}'. "
+                f"Available: {', '.join(engine_registry.list_engine_names())}"
+            ),
+        )
+    if not engine.is_available():
+        raise HTTPException(
+            status_code=409,
+            detail=f"The {engine.name} weights are not downloaded on this machine",
+        )
+
+    params = SynthesisParameters(
+        temperature=payload.params.temperature,
+        cfg_weight=payload.params.cfg_weight,
+        exaggeration=payload.params.exaggeration,
+        speed=payload.params.speed,
+        seed=payload.params.seed,
+        top_p=payload.params.top_p,
+        repetition_penalty=payload.params.repetition_penalty,
+        language=payload.params.language,
+        enable_watermark=payload.params.enable_watermark,
+    )
+    if params.seed < 0:
+        params.seed = random.randint(1, 99_999_999)
+
+    items = []
+    for index, line in enumerate(lines):
+        filename = (line.filename or "").strip() or f"line_{index + 1:04d}.wav"
+        if not filename.lower().endswith(".wav"):
+            filename = f"{Path(filename).stem}.wav"
+        items.append(
+            BatchItemState(index=index, filename=filename, text=line.text.strip())
+        )
+
+    job = batch_manager.create(
+        engine=engine,
+        profile=profile,
+        items=items,
+        params=params,
+        sentence_pause_ms=payload.sentence_pause_ms,
+        output_dir=payload.output_dir,
+    )
+    return job.to_dict()
+
+
+@app.get("/api/batch/{job_id}")
+def get_batch(job_id: str) -> Dict[str, Any]:
+    job = batch_manager.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Batch job not found")
+    return job.to_dict()
+
+
+@app.post("/api/batch/{job_id}/cancel")
+def cancel_batch(job_id: str) -> Dict[str, Any]:
+    job = batch_manager.cancel(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Batch job not found")
+    return job.to_dict()
 
 
 def main() -> None:

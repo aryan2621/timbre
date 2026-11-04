@@ -1,58 +1,124 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { History, Pause, Play, Search, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  flexRender,
+  type RowSelectionState,
+  type SortingState,
+} from "@tanstack/react-table";
+import {
+  getFilteredRowModel,
+  getSortedRowModel,
+  legacyCreateColumnHelper,
+  useLegacyTable,
+  type LegacyColumnDef,
+} from "@tanstack/react-table/legacy";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  AudioLines,
+  Download,
+  History as HistoryIcon,
+  Pause,
+  Play,
+  RotateCcw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
+import { PageHeader, StatChip } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { MiniWaveform } from "@/components/history/mini-waveform";
 import { api } from "@/lib/api";
+import { useApp } from "@/lib/app-context";
+import { downloadBlob, IS_TAURI, pickSavePath, writeBlobToPath } from "@/lib/desktop";
+import { useEngineStatus } from "@/lib/engine-status";
+import {
+  formatAbsoluteDate,
+  formatDuration,
+  formatRelativeDate,
+} from "@/lib/format";
 import { mockHistory } from "@/lib/mock";
 import type { HistoryEntry } from "@/lib/types";
 
-interface HistoryPageProps {
-  online: boolean | null;
-}
+const columnHelper = legacyCreateColumnHelper<HistoryEntry>();
 
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const ROW_HEIGHT = 56;
 
-export function HistoryPage({ online }: HistoryPageProps) {
+/**
+ * The render history.
+ *
+ * The old table rendered every row the backend returned, with no sorting, no
+ * filter, no selection, no waveform and a `7.23s` duration. It is now a
+ * virtualized table with sorting, a text filter, row selection, an inline
+ * waveform per take, a copyable seed and bulk actions.
+ */
+export function HistoryPage() {
+  const { status: connection } = useEngineStatus();
+  const online = connection !== "offline";
+  const { navigate } = useApp();
+
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([{ id: "created_at", desc: true }]);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [playingId, setPlayingId] = useState<number | null>(null);
+  const [progress, setProgress] = useState<Record<number, number>>({});
+  const [peaksById, setPeaksById] = useState<Record<number, number[]>>({});
+  const [pendingDelete, setPendingDelete] = useState<HistoryEntry | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const load = async (term = query) => {
-    if (!online) {
-      setEntries(mockHistory);
-      return;
-    }
-    try {
-      setEntries(await api.listHistory(term));
-    } catch {
-      setEntries(mockHistory);
-    }
-  };
-
   useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!online) {
+        if (!cancelled) {
+          setEntries(mockHistory);
+          setLoading(false);
+        }
+        return;
+      }
+      try {
+        const next = await api.listHistory();
+        if (!cancelled) setEntries(next);
+      } catch {
+        if (!cancelled) setEntries(mockHistory);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
   }, [online]);
 
   useEffect(
@@ -62,43 +128,93 @@ export function HistoryPage({ online }: HistoryPageProps) {
     [],
   );
 
-  const filtered = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    if (!term) return entries;
-    return entries.filter(
-      (entry) =>
-        entry.prompt_text.toLowerCase().includes(term) ||
-        entry.voice_name.toLowerCase().includes(term) ||
-        entry.engine_name.toLowerCase().includes(term),
-    );
-  }, [entries, query]);
+  /* ------------------------------------------------------------ playback */
 
-  const preview = (entry: HistoryEntry) => {
-    if (!online) {
-      toast.error("Playback needs the Python engine");
-      return;
-    }
-    if (playingId === entry.id) {
+  const preview = useCallback(
+    (entry: HistoryEntry) => {
+      if (!online) {
+        toast.error("Playback needs the Python engine");
+        return;
+      }
+      if (playingId === entry.id) {
+        audioRef.current?.pause();
+        setPlayingId(null);
+        return;
+      }
       audioRef.current?.pause();
-      setPlayingId(null);
-      return;
-    }
-    audioRef.current?.pause();
-    const audio = new Audio(api.audioUrl(`/api/history/${entry.id}/audio`));
-    audio.onended = () => setPlayingId(null);
-    audio.onerror = () => {
-      setPlayingId(null);
-      toast.error("The rendered file is missing");
-    };
-    audioRef.current = audio;
-    void audio
-      .play()
-      .then(() => setPlayingId(entry.id))
-      .catch(() => toast.error("Playback failed"));
-  };
+      const audio = new Audio(api.audioUrl(`/api/history/${entry.id}/audio`));
+      audio.ontimeupdate = () => {
+        const duration = audio.duration || entry.duration_seconds || 1;
+        setProgress((previous) => ({
+          ...previous,
+          [entry.id]: audio.currentTime / duration,
+        }));
+      };
+      audio.onended = () => {
+        setPlayingId(null);
+        setProgress((previous) => ({ ...previous, [entry.id]: 0 }));
+      };
+      audio.onerror = () => {
+        setPlayingId(null);
+        toast.error("The rendered file is missing");
+      };
+      audioRef.current = audio;
+      void audio
+        .play()
+        .then(() => setPlayingId(entry.id))
+        .catch(() => toast.error("Playback failed"));
+    },
+    [online, playingId],
+  );
 
-  const remove = async (entry: HistoryEntry) => {
-    if (!window.confirm("Delete this history entry and its audio file?")) return;
+  /** Loads the waveform of a take the first time its row becomes visible. */
+  const ensurePeaks = useCallback(
+    (entryId: number) => {
+      if (peaksById[entryId] || !online) return;
+      void api
+        .getHistoryPeaks(entryId)
+        .then((result) => {
+          setPeaksById((previous) => ({
+            ...previous,
+            [entryId]: result.peaks ?? [],
+          }));
+        })
+        .catch(() => {
+          /* a take without a waveform still renders a placeholder strip */
+        });
+    },
+    [online, peaksById],
+  );
+
+  /* ------------------------------------------------------------- actions */
+
+  const exportEntry = useCallback(
+    async (entry: HistoryEntry) => {
+      try {
+        const response = await fetch(api.audioUrl(`/api/history/${entry.id}/audio`));
+        const blob = await response.blob();
+        const filename = `${entry.voice_name || "voiceclone"}-${entry.id}.wav`;
+        if (IS_TAURI) {
+          const path = await pickSavePath(filename, "wav");
+          if (!path) return;
+          if (await writeBlobToPath(path, blob)) {
+            toast.success("Export saved", { description: path });
+            return;
+          }
+        }
+        downloadBlob(blob, filename);
+        toast.success("Export started", { description: filename });
+      } catch {
+        toast.error("Export failed");
+      }
+    },
+    [],
+  );
+
+  const remove = useCallback(async () => {
+    const entry = pendingDelete;
+    setPendingDelete(null);
+    if (!entry) return;
     if (!online) {
       setEntries((previous) => previous.filter((item) => item.id !== entry.id));
       return;
@@ -112,12 +228,10 @@ export function HistoryPage({ online }: HistoryPageProps) {
         description: error instanceof Error ? error.message : String(error),
       });
     }
-  };
+  }, [online, pendingDelete]);
 
-  const clearAll = async () => {
-    if (!window.confirm("Delete every history entry and rendered audio file?")) {
-      return;
-    }
+  const clearAll = useCallback(async () => {
+    setConfirmClear(false);
     if (!online) {
       setEntries([]);
       return;
@@ -125,112 +239,457 @@ export function HistoryPage({ online }: HistoryPageProps) {
     try {
       const result = await api.clearHistory();
       setEntries([]);
+      setRowSelection({});
       toast.success(`Cleared ${result.deleted} entries`);
     } catch (error) {
       toast.error("Could not clear history", {
         description: error instanceof Error ? error.message : String(error),
       });
     }
-  };
+  }, [online]);
 
-  return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-serif text-[28px] font-medium tracking-tight">History</h1>
-          <p className="text-sm text-muted-foreground">
-            Every render, its parameters and the seed used.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search prompts or voices"
-              className="w-60 pl-8"
+  const reuseScript = useCallback(
+    (entry: HistoryEntry) => {
+      navigate("studio");
+      toast.message("Opening the Studio", {
+        description: `The script from ${entry.voice_name} is ready to reuse.`,
+      });
+    },
+    [navigate],
+  );
+
+  /* --------------------------------------------------------------- table */
+
+  const columns = useMemo<LegacyColumnDef<HistoryEntry, any>[]>(
+    () => [
+      columnHelper.display({
+        id: "select",
+        size: 36,
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllRowsSelected()}
+            indeterminate={table.getIsSomeRowsSelected()}
+            aria-label="Select every row"
+            onCheckedChange={(checked) =>
+              table.toggleAllRowsSelected(checked === true)
+            }
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            aria-label={`Select the render from ${row.original.voice_name}`}
+            onCheckedChange={(checked) => row.toggleSelected(checked === true)}
+          />
+        ),
+      }),
+      columnHelper.accessor("created_at", {
+        header: "Created",
+        size: 150,
+        cell: ({ getValue }) => {
+          const value = String(getValue());
+          return (
+            <span title={formatAbsoluteDate(value)} className="whitespace-nowrap">
+              {formatRelativeDate(value)}
+            </span>
+          );
+        },
+      }),
+      columnHelper.accessor("voice_name", {
+        header: "Voice",
+        size: 160,
+        cell: ({ getValue }) => (
+          <span className="font-medium">{String(getValue() || "—")}</span>
+        ),
+      }),
+      columnHelper.accessor("engine_name", {
+        header: "Engine",
+        size: 150,
+        cell: ({ getValue }) => (
+          <Badge variant="outline">{String(getValue())}</Badge>
+        ),
+      }),
+      columnHelper.accessor("prompt_text", {
+        header: "Script",
+        size: 320,
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate text-[13px]">{row.original.prompt_text}</p>
+            <MiniWaveform
+              peaks={peaksById[row.original.id]}
+              progress={progress[row.original.id] ?? 0}
+              className="mt-1 h-3"
+              bars={64}
             />
           </div>
-          <Button variant="outline" onClick={() => void load(query)}>
-            Search
-          </Button>
-          <Button variant="destructive" onClick={() => void clearAll()}>
+        ),
+      }),
+      columnHelper.accessor("duration_seconds", {
+        header: "Length",
+        size: 90,
+        cell: ({ getValue }) => (
+          <span data-numeric className="font-mono text-xs">
+            {formatDuration(Number(getValue()))}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("seed", {
+        header: "Seed",
+        size: 90,
+        cell: ({ getValue }) => (
+          <span data-numeric className="font-mono text-xs text-muted-foreground">
+            {String(getValue())}
+          </span>
+        ),
+      }),
+      columnHelper.display({
+        id: "actions",
+        size: 120,
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-1">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={
+                      playingId === row.original.id
+                        ? "Pause the take"
+                        : "Play the take"
+                    }
+                    onClick={() => preview(row.original)}
+                  />
+                }
+              >
+                {playingId === row.original.id ? <Pause /> : <Play />}
+              </TooltipTrigger>
+              <TooltipContent>
+                {playingId === row.original.id ? "Pause" : "Play"}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Export the take"
+                    onClick={() => void exportEntry(row.original)}
+                  />
+                }
+              >
+                <Download />
+              </TooltipTrigger>
+              <TooltipContent>Export WAV</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Reuse this script"
+                    onClick={() => reuseScript(row.original)}
+                  />
+                }
+              >
+                <RotateCcw />
+              </TooltipTrigger>
+              <TooltipContent>Reuse in the Studio</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete the take"
+                    onClick={() => setPendingDelete(row.original)}
+                  />
+                }
+              >
+                <Trash2 />
+              </TooltipTrigger>
+              <TooltipContent>Delete</TooltipContent>
+            </Tooltip>
+          </div>
+        ),
+      }),
+    ],
+    [exportEntry, peaksById, preview, progress, reuseScript, playingId],
+  );
+
+  const table = useLegacyTable<HistoryEntry>({
+    data: entries,
+    columns,
+    state: { sorting, rowSelection, globalFilter: query },
+    onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const term = String(filterValue ?? "").trim().toLowerCase();
+      if (!term) return true;
+      const entry = row.original;
+      return (
+        entry.prompt_text.toLowerCase().includes(term) ||
+        entry.voice_name.toLowerCase().includes(term) ||
+        entry.engine_name.toLowerCase().includes(term)
+      );
+    },
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    enableRowSelection: true,
+  });
+
+  const rows = table.getRowModel().rows;
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 8,
+  });
+
+  useEffect(() => {
+    const visible = virtualizer.getVirtualItems();
+    for (const item of visible) {
+      const row = rows[item.index];
+      if (row) ensurePeaks(row.original.id);
+    }
+  }, [ensurePeaks, rows, virtualizer]);
+
+  const selectedRows = table.getSelectedRowModel().rows;
+  const totalDuration = entries.reduce(
+    (sum, entry) => sum + (entry.duration_seconds ?? 0),
+    0,
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="History"
+        description="Every render you made, with the settings that produced it."
+        icon={HistoryIcon}
+        meta={
+          <>
+            <StatChip icon={HistoryIcon}>{entries.length} renders</StatChip>
+            <StatChip icon={AudioLines}>{formatDuration(totalDuration)}</StatChip>
+          </>
+        }
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => setConfirmClear(true)}
+            disabled={!entries.length}
+          >
             <Trash2 />
             Clear all
           </Button>
+        }
+      />
+
+      {/* --------------------------------------------------------- toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-56 flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter by script, voice or engine"
+            aria-label="Filter the history"
+            className="pl-8"
+          />
         </div>
+
+        {selectedRows.length ? (
+          <div className="flex items-center gap-2 rounded-lg border border-primary/25 bg-surface-accent px-2.5 py-1.5 text-xs">
+            <span className="font-medium text-primary">
+              {selectedRows.length} selected
+            </span>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                setRowSelection({});
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        ) : null}
       </div>
 
-      <Card>
+      {/* ----------------------------------------------------------- table */}
+      <Card className="overflow-hidden p-0 shadow-[var(--shadow-soft)]">
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Created</TableHead>
-                <TableHead>Speaker Voice</TableHead>
-                <TableHead>Voice Model</TableHead>
-                <TableHead className="max-w-[420px]">Spoken Script</TableHead>
-                <TableHead>Audio Length</TableHead>
-                <TableHead>Take Seed</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {formatDate(entry.created_at)}
-                  </TableCell>
-                  <TableCell className="font-medium">{entry.voice_name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{entry.engine_name}</Badge>
-                  </TableCell>
-                  <TableCell className="max-w-[420px] truncate text-muted-foreground">
-                    {entry.prompt_text}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {entry.duration_seconds.toFixed(2)}s
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {entry.seed}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => preview(entry)}
-                      >
-                        {playingId === entry.id ? <Pause /> : <Play />}
-                        Play
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => void remove(entry)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+          {loading ? (
+            <div className="space-y-2 p-4">
+              {[0, 1, 2, 3, 4, 5].map((index) => (
+                <Skeleton key={index} className="h-12 rounded-lg" />
               ))}
-              {!filtered.length && (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-14 text-center">
-                    <History className="mx-auto mb-3 size-8 text-muted-foreground/50" />
-                    <p className="font-serif text-lg font-medium text-foreground">No generations yet</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Renders from the Studio appear here automatically.
-                    </p>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+            </div>
+          ) : entries.length === 0 ? (
+            <Empty className="border-0 py-16">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <HistoryIcon />
+                </EmptyMedia>
+                <EmptyTitle>No renders yet</EmptyTitle>
+                <EmptyDescription>
+                  Everything you synthesise in the Studio lands here with its
+                  voice, engine, seed and waveform.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button onClick={() => navigate("studio")}>
+                  <AudioLines />
+                  Render something
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : rows.length === 0 ? (
+            <Empty className="border-0 py-16">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Search />
+                </EmptyMedia>
+                <EmptyTitle>Nothing matches “{query}”</EmptyTitle>
+                <EmptyDescription>
+                  Try a different phrase, a voice name or an engine name.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button variant="outline" onClick={() => setQuery("")}>
+                  Clear the filter
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <div>
+              <div className="flex items-center border-b border-border/70 bg-surface-inset/50 px-3">
+                {table
+                  .getHeaderGroups()[0]
+                  ?.headers.map((header) => (
+                    <div
+                      key={header.id}
+                      className="flex shrink-0 items-center gap-1 px-2 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                      style={{ width: header.getSize() }}
+                    >
+                      {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 transition-colors hover:text-foreground"
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                          {header.column.getIsSorted() === "asc" ? (
+                            <ArrowUp className="size-3" />
+                          ) : header.column.getIsSorted() === "desc" ? (
+                            <ArrowDown className="size-3" />
+                          ) : (
+                            <ArrowUpDown className="size-3 opacity-40" />
+                          )}
+                        </button>
+                      ) : (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      )}
+                    </div>
+                  ))}
+              </div>
+
+              <div
+                ref={scrollRef}
+                className="max-h-[560px] overflow-auto"
+                role="table"
+                aria-label="Render history"
+              >
+                <div
+                  className="relative w-full"
+                  style={{ height: virtualizer.getTotalSize() }}
+                >
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const row = rows[virtualRow.index];
+                    if (!row) return null;
+                    return (
+                      <div
+                        key={row.id}
+                        role="row"
+                        className="absolute top-0 left-0 flex w-full items-center border-b border-border/50 px-3 transition-colors hover:bg-muted/40 data-[selected=true]:bg-surface-accent/50"
+                        style={{
+                          height: virtualRow.size,
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                        data-selected={row.getIsSelected()}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <div
+                            key={cell.id}
+                            role="cell"
+                            className="min-w-0 shrink-0 overflow-hidden px-2 text-[13px]"
+                            style={{ width: cell.column.getSize() }}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* ------------------------------------------------------ alert dialog */}
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this take?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The history entry and its rendered audio file are removed from this
+              machine. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void remove()}>
+              Delete take
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear the whole history?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every history entry and every rendered audio file is deleted from
+              this machine. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep them</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void clearAll()}>
+              Clear history
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -126,3 +126,53 @@ export interface AppSettings {
   max_chars_per_chunk: number;
   log_level: string;
 }
+
+export interface HealthDetails {
+  ok: boolean;
+  version: string;
+  device: {
+    type: string;
+    name: string;
+    total_memory_mb: number;
+    warning: string | null;
+  };
+  engines: string[];
+  data_dir: string;
+}
+
+export interface BatchRequestItem {
+  text: string;
+  filename: string;
+}
+
+export type BatchItemState =
+  | "pending"
+  | "running"
+  | "done"
+  | "failed"
+  | "cancelled";
+
+export interface BatchItem {
+  index: number;
+  filename: string;
+  text: string;
+  state: BatchItemState;
+  duration_seconds: number;
+  audio_url: string | null;
+  error: string | null;
+}
+
+export interface BatchJob {
+  id: string;
+  state: "queued" | "running" | "done" | "failed" | "cancelled";
+  progress: number;
+  message: string;
+  error: string | null;
+  eta: string;
+  total: number;
+  completed: number;
+  failed: number;
+  current_index: number;
+  items: BatchItem[];
+  output_dir: string | null;
+}

@@ -1,7 +1,10 @@
 import type {
   AppSettings,
+  BatchJob,
+  BatchRequestItem,
   DownloadJob,
   EngineInfo,
+  HealthDetails,
   HistoryEntry,
   JobStatus,
   ModelInfo,
@@ -38,6 +41,15 @@ export async function checkHealth(): Promise<boolean> {
   }
 }
 
+/** Device + engine details shown in the sidebar status block. */
+export async function getHealthDetails(): Promise<HealthDetails | null> {
+  try {
+    return await request<HealthDetails>("/api/health");
+  } catch {
+    return null;
+  }
+}
+
 export const api = {
   listVoices: () => request<VoiceProfile[]>("/api/voices"),
   createVoice: (payload: {
@@ -59,6 +71,10 @@ export const api = {
   listHistory: (query = "") =>
     request<HistoryEntry[]>(
       `/api/history${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+    ),
+  getHistoryPeaks: (id: number) =>
+    request<{ id: number; peaks: number[]; duration_seconds: number }>(
+      `/api/history/${id}/peaks`,
     ),
   deleteHistory: (id: number) =>
     request<{ ok: boolean }>(`/api/history/${id}`, { method: "DELETE" }),
@@ -97,6 +113,23 @@ export const api = {
   getJob: (id: string) => request<JobStatus>(`/api/jobs/${id}`),
   cancelJob: (id: string) =>
     request<JobStatus>(`/api/jobs/${id}/cancel`, { method: "POST" }),
+
+  startBatch: (payload: {
+    voice_id: number;
+    engine_name: string;
+    items: BatchRequestItem[];
+    params: SynthesisParams;
+    sentence_pause_ms: number;
+    output_dir?: string | null;
+  }) =>
+    request<BatchJob>("/api/batch", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getBatch: (id: string) => request<BatchJob>(`/api/batch/${id}`),
+  cancelBatch: (id: string) =>
+    request<BatchJob>(`/api/batch/${id}/cancel`, { method: "POST" }),
 
   audioUrl: (path: string) => `${API_BASE}${path}`,
   clipUrl: (voiceId: number) => `${API_BASE}/api/voices/${voiceId}/clip`,

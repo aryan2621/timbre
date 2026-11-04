@@ -1,17 +1,20 @@
-import { Suspense, lazy, useEffect, useState } from "react";
-import { cn } from "cn";
-import { AppSidebar, type PageKey } from "@/components/app-sidebar";
-import { Separator } from "@/components/ui/separator";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { Suspense, lazy, useEffect, useMemo } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { AppSidebar } from "@/components/app-shell/app-sidebar";
+import { AppHeader } from "@/components/app-shell/app-header";
+import { CommandPalette } from "@/components/app-shell/command-palette";
+import { ShortcutsSheet } from "@/components/app-shell/shortcuts-sheet";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Loader } from "@/components/ui/loader";
-import { checkHealth } from "@/lib/api";
-import { ThemeProvider } from "@/lib/theme";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AppProvider, useApp } from "@/lib/app-context";
+import { EngineStatusProvider } from "@/lib/engine-status";
+import { ThemeProvider, useTheme } from "@/lib/theme";
+import { useHashRoute } from "@/lib/use-router";
+import { useHotkeys } from "@/lib/use-hotkeys";
+import { NAVIGATION_SHORTCUTS } from "@/lib/shortcuts";
+import { pageVariants } from "@/lib/motion";
 
 // Route-level code splitting: each page is only downloaded when first visited,
 // keeping the initial studio bundle lean and startup fast.
@@ -22,132 +25,130 @@ const HistoryPage = lazy(() => import("@/pages/history").then((m) => ({ default:
 const ModelsPage = lazy(() => import("@/pages/models").then((m) => ({ default: m.ModelsPage })));
 const SettingsPage = lazy(() => import("@/pages/settings").then((m) => ({ default: m.SettingsPage })));
 
-const PAGE_TITLES: Record<PageKey, string> = {
-  studio: "Studio",
-  voices: "Voices",
-  batch: "Batch",
-  history: "History",
-  models: "Models",
-  settings: "Settings",
-};
+function PageSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2 border-b border-border/70 pb-4">
+        <Skeleton className="h-7 w-56" />
+        <Skeleton className="h-4 w-80" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-40 lg:col-span-2" />
+        <Skeleton className="h-40" />
+      </div>
+      <Skeleton className="h-56" />
+    </div>
+  );
+}
 
 function Shell() {
-  const [page, setPage] = useState<PageKey>("studio");
-  const [online, setOnline] = useState<boolean | null>(null);
+  const {
+    page,
+    navigate,
+    setPaletteOpen,
+    setShortcutsOpen,
+    shortcutsOpen,
+    requestIntent,
+  } = useApp();
+  const { setTheme, resolvedTheme } = useTheme();
 
+  useHotkeys(
+    useMemo(
+      () => ({
+        "mod+k": () => setPaletteOpen(true),
+        "shift+?": () => setShortcutsOpen(true),
+        "mod+shift+l": () =>
+          setTheme(resolvedTheme === "dark" ? "light" : "dark"),
+        "mod+shift+n": () => {
+          requestIntent("new-voice");
+          navigate("voices");
+        },
+        "mod+shift+i": () => {
+          requestIntent("import-script");
+          navigate("batch");
+        },
+        ...Object.fromEntries(
+          Object.entries(NAVIGATION_SHORTCUTS).map(([combo, target]) => [
+            combo,
+            () => navigate(target),
+          ]),
+        ),
+      }),
+      [
+        navigate,
+        requestIntent,
+        resolvedTheme,
+        setPaletteOpen,
+        setShortcutsOpen,
+        setTheme,
+      ],
+    ),
+  );
+
+  // Keep the document title in sync with the current screen.
   useEffect(() => {
-    let active = true;
-    const ping = async () => {
-      const next = await checkHealth();
-      if (active) setOnline(next);
-    };
-    void ping();
-    const timer = window.setInterval(() => void ping(), 5000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
-      const map: Record<string, PageKey> = {
-        "1": "studio",
-        "2": "voices",
-        "3": "batch",
-        "4": "history",
-        "5": "models",
-        "6": "settings",
-      };
-      const target = map[event.key];
-      if (target) {
-        event.preventDefault();
-        setPage(target);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  const meta = PAGE_TITLES[page];
-  // When the Settings dialog is open, the Studio page stays visible underneath it.
-  const contentPage: PageKey = page === "settings" ? "studio" : page;
+    document.title = `VoiceClone Studio · ${page.charAt(0).toUpperCase()}${page.slice(1)}`;
+  }, [page]);
 
   return (
     <SidebarProvider>
-      <AppSidebar page={page} onNavigate={setPage} online={online} />
+      <AppSidebar
+        page={page}
+        onNavigate={navigate}
+        onOpenPalette={() => setPaletteOpen(true)}
+      />
 
       <SidebarInset className="min-w-0">
-        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card/95 px-4 backdrop-blur-sm">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mx-1 h-5" />
-          <div className="flex min-w-0 items-center gap-1.5 text-sm">
-            <span className="hidden text-muted-foreground sm:inline">VoiceClone</span>
-            <span className="hidden text-muted-foreground/40 sm:inline">/</span>
-            <span className="truncate font-medium">{meta}</span>
-          </div>
+        <AppHeader />
 
-          <div className="ml-auto flex items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium">
-              <span
-                className={cn(
-                  "size-1.5 rounded-full",
-                  online === null
-                    ? "animate-pulse bg-amber-500"
-                    : online
-                      ? "bg-emerald-500"
-                      : "bg-red-500",
-                )}
-              />
-              <span className={online === false ? "text-destructive" : "text-foreground"}>
-                {online === null
-                  ? "Connecting"
-                  : online
-                    ? "Engine online"
-                    : "Demo mode"}
-              </span>
-            </span>
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-[1440px] p-4 md:p-6">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={page}
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <Suspense fallback={<PageSkeleton />}>
+                  {page === "studio" && <StudioPage />}
+                  {page === "voices" && <VoicesPage />}
+                  {page === "batch" && <BatchPage />}
+                  {page === "history" && <HistoryPage />}
+                  {page === "models" && <ModelsPage />}
+                  {page === "settings" && <SettingsPage />}
+                </Suspense>
+              </motion.div>
+            </AnimatePresence>
           </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
-          <Suspense
-            fallback={
-              <div className="flex h-[50vh] items-center justify-center">
-                <Loader size="size-6" />
-              </div>
-            }
-          >
-            {contentPage === "studio" && <StudioPage online={online} />}
-            {contentPage === "voices" && <VoicesPage online={online} />}
-            {contentPage === "batch" && <BatchPage online={online} />}
-            {contentPage === "history" && <HistoryPage online={online} />}
-            {contentPage === "models" && <ModelsPage online={online} />}
-          </Suspense>
-        </div>
+        </main>
       </SidebarInset>
 
-      {page === "settings" && (
-        <Suspense fallback={null}>
-          <SettingsPage
-            open={page === "settings"}
-            onClose={() => setPage("studio")}
-            online={online}
-          />
-        </Suspense>
-      )}
+      <CommandPalette />
+      <ShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </SidebarProvider>
+  );
+}
+
+function Routed() {
+  const [page, navigate] = useHashRoute();
+  return (
+    <AppProvider page={page} navigate={navigate}>
+      <Shell />
+    </AppProvider>
   );
 }
 
 export default function App() {
   return (
     <ThemeProvider>
-      <TooltipProvider delay={300}>
-        <Shell />
-        <Toaster richColors position="bottom-right" closeButton />
-      </TooltipProvider>
+      <EngineStatusProvider>
+        <TooltipProvider delay={300}>
+          <Routed />
+          <Toaster richColors position="bottom-right" closeButton />
+        </TooltipProvider>
+      </EngineStatusProvider>
     </ThemeProvider>
   );
 }

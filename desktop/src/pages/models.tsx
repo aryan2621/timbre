@@ -1,42 +1,69 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import {
   Boxes,
+  Check,
   Download,
   HardDrive,
   Loader2,
   Scale,
+  Square,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Meter } from "@/components/ui/meter";
+import { PageHeader, StatChip } from "@/components/ui/page-header";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { useEngineStatus } from "@/lib/engine-status";
+import { formatBytes } from "@/lib/format";
 import { mockModels } from "@/lib/mock";
-import { Loader } from "@/components/ui/loader";
 import type { DownloadJob, ModelInfo } from "@/lib/types";
-
-interface ModelsPageProps {
-  online: boolean | null;
-}
 
 const ACTIVE_STATES = new Set(["queued", "running"]);
 
-function formatSize(bytes: number): string {
-  if (!bytes) return "—";
-  if (bytes >= 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
-}
+/**
+ * The model catalogue.
+ *
+ * The old screen was a list of rows with a download progress hidden in a
+ * small box and an 11px underlined “Cancel” link. Each model is now a card
+ * with a real progress ring, the licence in plain words and the download
+ * controls at a consistent weight.
+ */
+export function ModelsPage() {
+  const { status: connection } = useEngineStatus();
+  const online = connection !== "offline";
 
-export function ModelsPage({ online }: ModelsPageProps) {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [downloads, setDownloads] = useState<Record<string, DownloadJob>>({});
   const [loading, setLoading] = useState(true);
+  const [pendingDelete, setPendingDelete] = useState<ModelInfo | null>(null);
   const notified = useRef<Set<string>>(new Set());
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!online) {
       setModels(mockModels);
       setLoading(false);
@@ -59,12 +86,11 @@ export function ModelsPage({ online }: ModelsPageProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [online]);
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online]);
+  }, [load]);
 
   const activeIds = useMemo(
     () =>
@@ -159,14 +185,10 @@ export function ModelsPage({ online }: ModelsPageProps) {
     }
   };
 
-  const removeModel = async (model: ModelInfo) => {
-    if (
-      !window.confirm(
-        `Delete the downloaded ${model.name} weights? You can download them again later.`,
-      )
-    ) {
-      return;
-    }
+  const removeModel = async () => {
+    const model = pendingDelete;
+    setPendingDelete(null);
+    if (!model) return;
     if (!online) {
       toast.error("Deleting weights needs the Python engine");
       return;
@@ -182,168 +204,253 @@ export function ModelsPage({ online }: ModelsPageProps) {
     }
   };
 
-  const downloadedCount = models.filter((model) => model.is_downloaded).length;
+  const downloaded = models.filter((model) => model.is_downloaded);
+  const installedBytes = downloaded.reduce(
+    (sum, model) => sum + model.total_bytes,
+    0,
+  );
+  const totalBytes = models.reduce((sum, model) => sum + model.total_bytes, 0);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
-      {/* Page header — Relay "page-header" */}
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
-        <div>
-          <h1 className="font-serif text-[30px] leading-tight font-medium tracking-tight">AI Voice Models</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Download and manage offline voice packs. Every model runs 100% locally on your computer with complete privacy.
-          </p>
-        </div>
-        <Badge variant="secondary" className="gap-1.5 px-3 py-1.5 text-xs">
-          <HardDrive className="size-3.5" />
-          {downloadedCount} of {models.length} ready
-        </Badge>
-      </div>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="Models"
+        description="Voice model packs, licences and downloads. Everything runs locally — no weights are uploaded anywhere."
+        icon={Boxes}
+        meta={
+          <>
+            <StatChip icon={Check} tone={downloaded.length ? "success" : "neutral"}>
+              {downloaded.length} of {models.length} installed
+            </StatChip>
+            <StatChip icon={HardDrive}>{formatBytes(installedBytes)}</StatChip>
+          </>
+        }
+      />
 
-      {/* Device note — Relay "device-note" accent-soft panel */}
-      <div className="flex items-center gap-2.5 rounded-xl border border-border bg-accent px-4 py-3 text-sm text-accent-foreground">
-        <Scale className="size-4 shrink-0" />
-        <span>
-          {downloadedCount > 0 ? (
-            <>
-              <strong>{downloadedCount} voice model{downloadedCount > 1 ? "s" : ""} installed and ready to use.</strong>{" "}
-            </>
-          ) : (
-            <>
-              <strong>No voice models downloaded yet.</strong>{" "}
-            </>
-          )}
-          Model packs live safely on your machine and resume automatically if interrupted.
-        </span>
-      </div>
-
-      {/* Section heading — Relay "section-heading" */}
-      <div className="section-heading flex items-end justify-between gap-4">
-        <div>
-          <h2 className="font-serif text-[20px] font-medium tracking-tight">Available Voice Models</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Free, local and private. Models process audio on-device so no data ever touches the cloud.
-          </p>
-        </div>
-      </div>
-
-      {/* Model list — Relay "model-list" panel with rows */}
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-        {models.map((model, index) => {
-          const job = downloads[model.id];
-          const active = job ? ACTIVE_STATES.has(job.state) : false;
-          const failed = job?.state === "failed";
-
-          return (
-            <article
-              key={model.id}
-              className={`flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-5 ${
-                index > 0 ? "border-t border-border" : ""
-              }`}
-            >
-              <div className="flex min-w-0 flex-1 items-start gap-3">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
-                  <Boxes className="size-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <strong className="text-[15px] leading-tight">{model.name}</strong>
-                    <Badge
-                      variant={model.commercial_allowed ? "secondary" : "destructive"}
-                      className="gap-1 px-2 py-0 text-[11px]"
-                    >
-                      {model.commercial_allowed ? "Commercial" : "Non-commercial"}
-                    </Badge>
-                    {model.is_downloaded && !active && (
-                      <Badge variant="default" className="px-2 py-0 text-[11px]">Installed &amp; Ready</Badge>
-                    )}
-                  </div>
-                  <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
-                    {model.license_notice}
-                  </p>
-                  <span className="mt-1 block font-mono text-[11px] text-muted-foreground">
-                    v{model.version} · {formatSize(model.total_bytes)} · {model.license_name}
-                  </span>
-                </div>
+      {models.length ? (
+        <div className="rounded-xl border border-border bg-surface-accent px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Scale className="size-4 shrink-0 text-primary" />
+            <p className="min-w-0 flex-1 text-foreground">
+              {downloaded.length > 0 ? (
+                <>
+                  <strong>
+                    {downloaded.length} voice model
+                    {downloaded.length > 1 ? "s" : ""} installed and ready to use.
+                  </strong>{" "}
+                  Downloads resume automatically if they are interrupted.
+                </>
+              ) : (
+                <>
+                  <strong>No voice models downloaded yet.</strong> Pick a pack
+                  below — it is fetched once and then works offline.
+                </>
+              )}
+            </p>
+            {totalBytes > 0 ? (
+              <div className="flex w-full items-center gap-2 sm:w-56">
+                <Meter
+                  value={installedBytes}
+                  max={totalBytes}
+                  label="Installed model weight"
+                  className="flex-1"
+                />
+                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                  {Math.round((installedBytes / totalBytes) * 100)}%
+                </span>
               </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
-              <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
-                {active ? (
-                  <div className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs">
-                    <Loader2 className="size-3.5 animate-spin text-primary" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="max-w-[220px] truncate text-muted-foreground">{job.message}</span>
-                      <div className="flex items-center gap-2 font-mono tabular-nums text-muted-foreground">
-                        <span>{job.progress.toFixed(0)}%</span>
-                        <span>{formatSize(job.downloaded_bytes)} / {formatSize(job.total_bytes)}</span>
-                        <span>{job.speed_mb_s.toFixed(2)} MB/s</span>
+      {loading ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          {[0, 1, 2, 3].map((index) => (
+            <Skeleton key={index} className="h-48 rounded-xl" />
+          ))}
+        </div>
+      ) : models.length === 0 ? (
+        <Empty className="border border-dashed bg-surface-inset/60 py-14">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Boxes />
+            </EmptyMedia>
+            <EmptyTitle>No models in the catalogue</EmptyTitle>
+            <EmptyDescription>
+              The catalogue is defined by the Python sidecar. Start it to see
+              the available voice packs.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {models.map((model, index) => {
+            const job = downloads[model.id];
+            const active = job ? ACTIVE_STATES.has(job.state) : false;
+            const failed = job?.state === "failed";
+            const percent = job?.progress ?? (model.is_downloaded ? 100 : 0);
+
+            return (
+              <motion.div
+                key={model.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.18,
+                  delay: Math.min(index * 0.03, 0.24),
+                }}
+              >
+                <Card className="h-full shadow-[var(--shadow-soft)]">
+                  <CardContent className="flex h-full flex-col gap-2">
+                    <div className="flex items-start gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-accent text-primary">
+                        <Boxes className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <h3 className="text-[15px] font-medium leading-tight">
+                            {model.name}
+                          </h3>
+                          <Badge
+                            variant={model.commercial_allowed ? "secondary" : "outline"}
+                            className={
+                              model.commercial_allowed
+                                ? ""
+                                : "border-status-warning/40 text-status-warning"
+                            }
+                          >
+                            {model.commercial_allowed ? "Commercial" : "Non-commercial"}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                          {model.license_notice}
+                        </p>
+                        <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                          v{model.version} · {formatBytes(model.total_bytes)} ·{" "}
+                          {model.license_name}
+                        </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => void cancelDownload(job)}
-                      className="ml-1 text-[11px] text-muted-foreground underline underline-offset-2 hover:text-destructive"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : model.is_downloaded ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive hover:bg-destructive/10"
-                    onClick={() => void removeModel(model)}
-                  >
-                    <Trash2 className="size-4" /> Remove model files
-                  </Button>
-                ) : (
-                  <Button size="sm" onClick={() => void startDownload(model)}>
-                    <Download className="size-4" /> Download model
-                  </Button>
-                )}
-                {failed && <p className="text-[11px] text-destructive">{job.error}</p>}
-              </div>
-            </article>
-          );
-        })}
-      </div>
 
-      {activeIds.length > 0 && (
-        <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-            <span className="text-muted-foreground">Active downloads ({activeIds.length})</span>
-            {activeIds.map((id) => {
-              const job = downloads[id];
-              if (!job) return null;
-              return (
-                <span key={id} className="font-mono tabular-nums text-muted-foreground">
-                  {job.model_name}: {job.progress.toFixed(0)}%
-                </span>
-              );
-            })}
-          </div>
-          <Progress
-            value={Math.max(
-              ...Object.values(downloads)
-                .filter((job) => ACTIVE_STATES.has(job.state))
-                .map((job) => job.progress),
-              0,
-            )}
-            className="h-1.5"
-          />
-        </div>
-      )}
+                    {active ? (
+                      <div className="space-y-2 rounded-xl border border-border bg-surface-inset/60 p-3">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
+                          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                            {job?.message}
+                          </span>
+                          <span
+                            data-numeric
+                            className="shrink-0 font-mono text-xs font-medium"
+                          >
+                            {percent.toFixed(0)}%
+                          </span>
+                        </div>
+                        <Progress value={percent} />
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            data-numeric
+                            className="font-mono text-[11px] text-muted-foreground"
+                          >
+                            {formatBytes(job?.downloaded_bytes ?? 0)} /{" "}
+                            {formatBytes(job?.total_bytes ?? model.total_bytes)} ·{" "}
+                            {(job?.speed_mb_s ?? 0).toFixed(2)} MB/s
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => job && void cancelDownload(job)}
+                          >
+                            <Square />
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : model.is_downloaded ? (
+                      <div className="mt-auto flex items-center gap-2 pt-1">
+                        <Badge
+                          variant="outline"
+                          className="flex-1 justify-center gap-1 border-status-success/30 py-1 text-status-success"
+                        >
+                          <Check className="size-3" />
+                          Installed and ready
+                        </Badge>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => setPendingDelete(model)}
+                              />
+                            }
+                          >
+                            <Trash2 />
+                            Remove
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Delete the downloaded weights
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    ) : (
+                      <div className="mt-auto flex items-center gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => void startDownload(model)}
+                        >
+                          <Download />
+                          Download model
+                        </Button>
+                      </div>
+                    )}
 
-      {loading && (
-        <div className="flex justify-center py-3">
-          <Loader />
+                    {failed ? (
+                      <p className="flex items-start gap-1.5 text-[11px] text-destructive">
+                        <TriangleAlert className="mt-0.5 size-3 shrink-0" />
+                        {job?.error ?? job?.message}
+                      </p>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
       <p className="text-xs text-muted-foreground">
-        Weights are stored under your local application data directory. Downloads resume from a
-        partial file if interrupted.
+        Weights are stored under your local application data directory. Downloads
+        resume from a partial file if interrupted.
       </p>
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete the {pendingDelete?.name} weights?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              The downloaded files are removed from this machine. You can
+              download them again later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep them</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void removeModel()}>
+              Delete weights
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

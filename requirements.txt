@@ -3,9 +3,6 @@
 # Tested with Python 3.11 (Compatible with 3.10+)
 # ==============================================================================
 
-# GUI Framework
-PySide6==6.7.0
-
 # Numerical & Scientific Computing
 numpy==1.26.4
 scipy==1.13.0
