@@ -1,0 +1,66 @@
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+.vite/
+*.tsbuildinfo
+
+# Rust / Tauri
+target/
+desktop/src-tauri/gen/schemas/
+
+# Build output
+build/
+dist/
+*.app
+*.dmg
+*.deb
+
+# Local agent tooling (duplicated binaries + machine-local settings)
+.agent/
+.agents/
+.claude/
+.codex/
+.gemini/
+.grok/
+.hermes/
+.kiro/
+.opencode/
+.vibe/
+
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+credentials/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

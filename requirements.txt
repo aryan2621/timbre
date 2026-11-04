@@ -1,0 +1,49 @@
+# ==============================================================================
+# VoiceClone Studio Dependencies
+# Tested with Python 3.11 (Compatible with 3.10+)
+# ==============================================================================
+
+# GUI Framework
+PySide6==6.7.0
+
+# Numerical & Scientific Computing
+numpy==1.26.4
+scipy==1.13.0
+
+# Audio I/O & DSP
+sounddevice==0.4.6
+soundfile==0.12.1
+librosa==0.10.1
+pydub==0.25.1
+
+# Audio Preprocessing & Quality Analysis
+noisereduce==3.0.2
+pyloudnorm==0.1.1
+
+# Configuration & File System
+platformdirs==4.2.1
+
+# Local HTTP sidecar (Tauri desktop frontend)
+fastapi==0.115.6
+uvicorn==0.34.0
+websockets==17.4 --hash=sha256:bcad49104711f88b2b7c3ba166de172857d837248205e541b044a552558fecc3
+
+# Test Suite
+pytest==8.2.0
+
+# Optional PyInstaller Packaging
+pyinstaller==6.6.0
+
+# ==============================================================================
+# PyTorch Acceleration (Install one based on your hardware):
+#
+# A. macOS (Apple Silicon MPS / CPU):
+#    pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0
+#
+# B. Windows / Linux with NVIDIA GPU (CUDA 12.1):
+#    pip install torch==2.3.0+cu121 torchaudio==2.3.0+cu121 --index-url https://download.pytorch.org/whl/cu121
+#
+# C. Windows / Linux CPU-Only:
+#    pip install torch==2.3.0+cpu torchaudio==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu
+# ==============================================================================
+

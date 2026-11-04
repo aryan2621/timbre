@@ -1,0 +1,139 @@
+"""
+Application configuration schema and persistence.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from app.core.logging_setup import get_logger
+from app.core.paths import paths
+
+logger = get_logger("config")
+
+
+@dataclass
+class AppConfig:
+    """Strongly typed application configuration settings."""
+
+    # Appearance & Onboarding
+    theme: str = "dark"  # "dark", "light", "high_contrast"
+    first_run_completed: bool = False
+    global_ethics_consent: bool = False
+    consent_timestamp: Optional[str] = None
+
+    # Model & Engine Defaults
+    default_engine: str = "Chatterbox TTS"
+    device_preference: str = "auto"  # "auto", "cuda", "mps", "cpu"
+    use_half_precision: bool = True  # fp16 where supported
+    idle_unload_minutes: int = 10  # 0 = disabled
+    # Purging the CUDA/MPS allocator cache after every job forces the next
+    # synthesis to re-allocate its blocks, which slows down repeated renders.
+    clear_device_cache_after_job: bool = False
+
+    # Audio I/O
+    audio_input_device: Optional[str] = None
+    audio_output_device: Optional[str] = None
+    default_export_format: str = "wav"  # "wav", "mp3", "flac", "ogg"
+    default_sample_rate: int = 24000
+    default_bit_depth: int = 16  # 16, 24, 32
+
+    # Safety & Watermarking
+    enable_audio_watermark: bool = True  # Perth / model-native watermark
+    inject_metadata_tag: bool = True  # Embed 'AI-generated voice' tag in files
+
+    # Paths overrides (empty defaults to standard paths)
+    custom_models_dir: Optional[str] = None
+    custom_exports_dir: Optional[str] = None
+
+    # Synthesis defaults
+    default_temperature: float = 0.75
+    default_cfg_weight: float = 2.5
+    default_exaggeration: float = 1.0
+    default_speed: float = 1.0
+    default_sentence_pause_ms: int = 250
+    # Maximum characters rendered in one pass. Generation cost grows roughly
+    # quadratically with chunk length, so smaller chunks render noticeably
+    # faster (and start playing sooner) at the cost of slightly more joins.
+    max_chars_per_chunk: int = 110
+
+    # Logging
+    log_level: str = "INFO"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert configuration to dictionary representation."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> AppConfig:
+        """Construct configuration from dictionary, ignoring unexpected keys."""
+        valid_fields = cls.__dataclass_fields__.keys()
+        filtered = {k: v for k, v in data.items() if k in valid_fields}
+        return cls(**filtered)
+
+
+class ConfigManager:
+    """Manages loading, saving, and querying application settings."""
+
+    def __init__(self, config_file: Optional[Path] = None) -> None:
+        self.config_file = config_file or paths.config_path
+        self.config: AppConfig = self.load()
+
+    def load(self) -> AppConfig:
+        """Load configuration from JSON file or create with default values."""
+        if not self.config_file.exists():
+            logger.info("Configuration file not found at %s. Creating defaults.", self.config_file)
+            default_config = AppConfig()
+            self.save(default_config)
+            return default_config
+
+        try:
+            with open(self.config_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            logger.debug("Configuration loaded from %s", self.config_file)
+            return AppConfig.from_dict(data)
+        except Exception as e:
+            logger.error("Failed to load configuration from %s: %s. Using defaults.", self.config_file, e)
+            return AppConfig()
+
+    def save(self, config: Optional[AppConfig] = None) -> bool:
+        """Save active configuration to disk."""
+        if config is not None:
+            self.config = config
+
+        try:
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp_file = self.config_file.with_suffix(".json.tmp")
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump(self.config.to_dict(), f, indent=2)
+            os.replace(tmp_file, self.config_file)  # atomic: a crash can't truncate the settings
+            logger.debug("Configuration saved successfully to %s", self.config_file)
+            return True
+        except Exception as e:
+            logger.error("Failed to save configuration to %s: %s", self.config_file, e)
+            return False
+
+    def get_models_directory(self) -> Path:
+        """Returns effective models directory (custom if configured, else default)."""
+        if self.config.custom_models_dir:
+            p = Path(self.config.custom_models_dir)
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+        return paths.models_dir
+
+    def get_exports_directory(self) -> Path:
+        """Returns effective exports directory (custom if configured, else default)."""
+        if self.config.custom_exports_dir:
+            p = Path(self.config.custom_exports_dir)
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+        return paths.exports_dir
+
+
+# Global singleton instance
+config_manager = ConfigManager()
+
