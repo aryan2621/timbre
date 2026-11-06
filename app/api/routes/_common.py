@@ -22,7 +22,7 @@ def resolve_engine(name: str) -> TTSEngine:
     if not engine.is_available():
         raise HTTPException(
             status_code=409,
-            detail=f"The {engine.name} weights are not downloaded on this machine",
+            detail=f"The {engine.name} engine is not installed: its Python package is missing from the API environment",
         )
     return engine
 

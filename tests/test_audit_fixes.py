@@ -5,6 +5,8 @@ Regression tests for the safety fixes from the whole-app audit.
 import hashlib
 import sys
 import tempfile
+import threading
+import time
 import unittest
 import urllib.error
 from pathlib import Path
@@ -192,6 +194,57 @@ class TestDownload(unittest.TestCase):
             job, target = self._run(Path(d), b"GOODBODY", response=_Resp(200, b"EVILBODY"))
             self.assertEqual(job.state, "failed")
             self.assertFalse((target / "m.bin").exists())
+
+
+
+class TestLiveChunksAndPostprocess(_BatchApiTestCase):
+    SENTENCE = "This is a fairly long sentence that is used to force several chunks in one render. "
+
+    def test_chunks_are_served_and_postprocess_is_applied(self):
+        import io
+
+        import soundfile as sf
+
+        calls = []
+
+        def halve(audio, sample_rate, params):
+            calls.append(threading.current_thread().name)
+            return audio * 0.5
+
+        self.engine.postprocess_chunk = halve
+        response = self.client.post(
+            "/api/synthesize",
+            json={
+                "voice_id": 1,
+                "engine_name": self.engine.name,
+                "text": self.SENTENCE * 6,
+                "sentence_pause_ms": 100,
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        job_id = response.json()["id"]
+
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            job = self.client.get(f"/api/jobs/{job_id}").json()
+            if job["state"] in {"done", "failed", "cancelled"}:
+                break
+            time.sleep(0.05)
+        self.assertEqual(job["state"], "done", job)
+        self.assertGreater(job["total_chunks"], 1)
+        self.assertEqual(job["chunks_ready"], job["total_chunks"])
+        self.assertTrue(all(name.startswith("postprocess") for name in calls))
+
+        # Every chunk is a playable WAV, and together they are as long as the final file.
+        total = 0.0
+        for index in range(job["chunks_ready"]):
+            chunk = self.client.get(f"/api/jobs/{job_id}/chunks/{index}")
+            self.assertEqual(chunk.status_code, 200)
+            data, rate = sf.read(io.BytesIO(chunk.content))
+            self.assertLess(abs(data).max(), 0.2)  # halved from 0.3
+            total += len(data) / rate
+        self.assertAlmostEqual(total, job["duration_seconds"], delta=0.01)
+        self.assertEqual(self.client.get(f"/api/jobs/{job_id}/chunks/999").status_code, 404)
 
 
 if __name__ == "__main__":

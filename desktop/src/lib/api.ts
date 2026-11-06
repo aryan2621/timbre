@@ -229,6 +229,16 @@ export async function cancelBatch(id: string): Promise<BatchJob> {
   return request<BatchJob>(`/api/batch/${id}/cancel`, { method: "POST" });
 }
 
+/** One finished chunk of a running render, as WAV bytes. */
+export async function getJobChunk(jobId: string, index: number): Promise<ArrayBuffer> {
+  await tokenReady;
+  const response = await fetch(`${API_BASE}/api/jobs/${jobId}/chunks/${index}`, {
+    headers: { "X-VoiceClone-Token": apiToken },
+  });
+  if (!response.ok) throw new Error(`Chunk ${index} unavailable (${response.status})`);
+  return response.arrayBuffer();
+}
+
 /** URL builders */
 export function audioUrl(path: string): string {
   return withToken(`${API_BASE}${path}`);
@@ -267,6 +277,7 @@ export const api = {
   startBatch,
   getBatch,
   cancelBatch,
+  getJobChunk,
   audioUrl,
   clipUrl,
   jobAudioUrl,

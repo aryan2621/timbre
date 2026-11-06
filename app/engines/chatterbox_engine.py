@@ -177,13 +177,13 @@ class ChatterboxEngine(TTSEngine):
         return self._is_loaded
 
     def get_default_params(self) -> SynthesisParameters:
-        # Tuned for faster synthesis: lower CFG/temperature speeds up decoding
-        # while remaining natural; slight speed bump keeps listenability.
+        # Tuned for faster synthesis: lower CFG/temperature speeds up decoding.
+        # Speed stays 1.0: any other value runs a slow time-stretch on every chunk.
         return SynthesisParameters(
             temperature=0.65,
             cfg_weight=2.0,
             exaggeration=1.0,
-            speed=1.1,
+            speed=1.0,
             seed=-1,
             top_p=0.85,
             repetition_penalty=1.8,
@@ -297,15 +297,13 @@ class ChatterboxEngine(TTSEngine):
         stretched = librosa.effects.time_stretch(source, rate=speed)
         return np.asarray(stretched, dtype=np.float32)
 
-    def clone_and_synthesize(
+    def _generate(
         self,
         text: str,
         reference_audio_path: str | Path,
         params: SynthesisParameters,
     ) -> tuple[np.ndarray, int]:
-        """
-        Synthesizes speech conditioned on text and reference speaker timbre.
-        """
+        """Raw model output (no speed stretch), conditioned on the reference voice."""
         if not text.strip():
             empty = np.zeros(0, dtype=np.float32) if np is not None else []
             return empty, self.native_sample_rate
@@ -359,7 +357,6 @@ class ChatterboxEngine(TTSEngine):
                     # (generate may have swapped in a copy on the emotion-update path).
                     model.conds = conds
                 rendered = wav.squeeze().cpu().numpy().astype(np.float32)
-                rendered = self._apply_speed(rendered, int(model.sr), params.speed)
                 return rendered, int(model.sr)
             except Exception as e:
                 logger.error("Chatterbox native synthesis failed: %s. Using embedded engine.", e)
@@ -369,17 +366,26 @@ class ChatterboxEngine(TTSEngine):
             "Install it with `pip install chatterbox-tts` to synthesize real speech."
         )
 
+    def clone_and_synthesize(
+        self,
+        text: str,
+        reference_audio_path: str | Path,
+        params: SynthesisParameters,
+    ) -> tuple[np.ndarray, int]:
+        """Synthesizes speech conditioned on text and reference speaker timbre."""
+        audio, sample_rate = self._generate(text, reference_audio_path, params)
+        return self.postprocess_chunk(audio, sample_rate, params), sample_rate
+
     def synthesize_chunk(
         self,
         text: str,
         reference_audio_path: str | Path,
         params: SynthesisParameters,
     ) -> tuple[np.ndarray, int]:
-        """
-        Synthesize a single chunk for streaming playback.
-        Delegates to clone_and_synthesize but is named to signal intent:
-        the caller expects per-chunk audio as soon as it's ready.
-        Reference-voice conditionals are cached internally per (path, exaggeration),
-        so the same voice across chunks does not re-encode the reference clip.
-        """
-        return self.clone_and_synthesize(text, reference_audio_path, params)
+        """Raw chunk for the render loop. The speed stretch is left to
+        :meth:`postprocess_chunk` so it can overlap the next chunk's generation.
+        Reference conditionals are cached per (path, exaggeration)."""
+        return self._generate(text, reference_audio_path, params)
+
+    def postprocess_chunk(self, audio, sample_rate: int, params: SynthesisParameters):
+        return self._apply_speed(audio, sample_rate, params.speed)

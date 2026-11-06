@@ -209,6 +209,6 @@ export const mockSettings: AppSettings = {
   default_exaggeration: 1.0,
   default_speed: 1.0,
   default_sentence_pause_ms: 250,
-  max_chars_per_chunk: 110,
+  max_chars_per_chunk: 200,
   log_level: "INFO",
 };

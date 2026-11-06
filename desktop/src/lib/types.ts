@@ -64,6 +64,8 @@ export interface JobStatus {
   sample_rate?: number;
   preview_path?: string | null;
   seed?: number;
+  /** Finished chunks the UI can already fetch and play (play-while-rendering). */
+  chunks_ready?: number;
 }
 
 export interface HistoryEntry {

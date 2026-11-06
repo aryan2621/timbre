@@ -142,6 +142,16 @@ class TTSEngine(ABC):
         """
         return self.clone_and_synthesize(text, reference_audio_path, params)
 
+    def postprocess_chunk(
+        self, audio: np.ndarray, sample_rate: int, params: SynthesisParameters
+    ) -> np.ndarray:
+        """CPU-side work on a rendered chunk (e.g. time-stretch).
+
+        The render loop runs this on a worker thread while the next chunk is
+        being generated, so it must not touch the model. Default: no-op.
+        """
+        return audio
+
     @abstractmethod
     def get_default_params(self) -> SynthesisParameters:
         """Returns the recommended default parameters tuned for this engine."""

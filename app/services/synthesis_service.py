@@ -7,10 +7,12 @@ job managers and waveform peak extraction used by the transport layer.
 
 from __future__ import annotations
 
+import io
 import json
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -18,7 +20,7 @@ from typing import Any
 import numpy as np
 
 from app.audio.chunker import TextChunker
-from app.audio.stitch import stitch_chunks
+from app.audio.stitch import prepare_chunk, stitch_chunks
 from app.core.config import config_manager
 from app.core.device import device_manager
 from app.core.logging_setup import get_logger
@@ -66,6 +68,14 @@ def _format_eta(seconds: float) -> str:
     return f"{int(seconds // 60)}m {int(seconds % 60)}s"
 
 
+def _wav_bytes(audio: Any, sample_rate: int) -> bytes:
+    import soundfile as sf
+
+    buffer = io.BytesIO()
+    sf.write(buffer, audio, sample_rate, format="WAV", subtype="PCM_16")
+    return buffer.getvalue()
+
+
 class RenderCancelled(Exception):
     """Raised inside a render loop when the job was cancelled."""
 
@@ -106,11 +116,19 @@ def _render_chunks(
     on_message=None,
     on_chunk_start=None,
     on_chunk_done=None,
+    on_chunk_audio=None,
 ) -> tuple[Any, int]:
     """Renders text into one stitched waveform.
 
     Shared by the single-render job and the batch queue so both produce the
     exact same audio (same chunking, crossfades and sentence pauses).
+
+    The model only generates under ``engine.lock``. CPU work on each finished
+    chunk (``engine.postprocess_chunk``, e.g. time-stretch) runs on one worker
+    thread, so it overlaps the next chunk's generation. ``on_chunk_done`` and
+    ``on_chunk_audio(index, prepared_chunk, sample_rate)`` fire from that
+    thread, in chunk order, as soon as each chunk is final: the prepared
+    chunks concatenate into exactly the stitched result.
     """
     chunks = TextChunker.chunk_text(
         text, max_chars_per_chunk=config_manager.config.max_chars_per_chunk
@@ -122,34 +140,56 @@ def _render_chunks(
     rendered: list[Any] = []
     sample_rate = engine.native_sample_rate
     chunk_times: list[float] = []
+    total = len(chunks)
 
-    for index, chunk_text in enumerate(chunks):
-        if cancel_event.is_set():
-            raise RenderCancelled()
-        if on_chunk_start is not None:
-            on_chunk_start(index, len(chunks))
-        chunk_start = time.time()
-        with engine.lock:
-            audio, sample_rate = engine.synthesize_chunk(
-                text=chunk_text,
-                reference_audio_path=reference_path,
-                params=params,
-            )
-        rendered.append(np.asarray(audio, dtype=np.float32) if np is not None else audio)
-        chunk_times.append(time.time() - chunk_start)
+    def finish(index: int, raw: Any, rate: int) -> Any:
+        audio = np.asarray(engine.postprocess_chunk(raw, rate, params), dtype=np.float32)
         if on_chunk_done is not None:
-            on_chunk_done(index, len(chunks), sum(chunk_times) / len(chunk_times))
+            on_chunk_done(index, total, sum(chunk_times) / len(chunk_times))
+        if on_chunk_audio is not None and len(audio):
+            on_chunk_audio(
+                index,
+                prepare_chunk(
+                    audio,
+                    is_first=not any(len(done) for done in rendered_so_far),
+                    sample_rate=rate,
+                    pause_ms=sentence_pause_ms,
+                ),
+                rate,
+            )
+        rendered_so_far.append(audio)
+        return audio
+
+    rendered_so_far: list[Any] = []  # only touched by the single worker thread
+    futures = []
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="postprocess") as pool:
+        try:
+            for index, chunk_text in enumerate(chunks):
+                if cancel_event.is_set():
+                    raise RenderCancelled()
+                if on_chunk_start is not None:
+                    on_chunk_start(index, total)
+                chunk_start = time.time()
+                with engine.lock:
+                    raw, sample_rate = engine.synthesize_chunk(
+                        text=chunk_text,
+                        reference_audio_path=reference_path,
+                        params=params,
+                    )
+                chunk_times.append(time.time() - chunk_start)
+                futures.append(pool.submit(finish, index, raw, sample_rate))
+        except BaseException:
+            for future in futures:
+                future.cancel()
+            raise
+        rendered = [future.result() for future in futures]
 
     if cancel_event.is_set():
         raise RenderCancelled()
 
     if on_message is not None:
         on_message("Stitching audio chunks with crossfades")
-    stitched = stitch_chunks(
-        rendered,
-        sample_rate=sample_rate,
-        pause_ms=sentence_pause_ms,
-    )
+    stitched = stitch_chunks(rendered, sample_rate=sample_rate, pause_ms=sentence_pause_ms)
     return stitched, sample_rate
 
 
@@ -176,10 +216,13 @@ class Job:
     seed: int = -1
     created_at: float = field(default_factory=time.time)
     cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
+    # WAV bytes of each finished chunk, for play-while-rendering.
+    live_chunks: list[bytes] = field(default_factory=list, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
+            "chunks_ready": len(self.live_chunks),
             "state": self.state,
             "progress": self.progress,
             "current_chunk": self.current_chunk,
@@ -222,6 +265,8 @@ class JobManager:
         with _START_LOCK:
             _ensure_idle()
             with self._lock:
+                for old in self._jobs.values():
+                    old.live_chunks = []  # the finished file replaces them
                 self._jobs[job.id] = job
                 self._prune_locked()
 
@@ -307,6 +352,9 @@ class JobManager:
                     on_message=lambda message: setattr(job, "message", message),
                     on_chunk_start=on_chunk_start,
                     on_chunk_done=on_chunk_done,
+                    on_chunk_audio=lambda _i, audio, rate: job.live_chunks.append(
+                        _wav_bytes(audio, rate)
+                    ),
                 )
             except RenderCancelled:
                 job.state = "cancelled"

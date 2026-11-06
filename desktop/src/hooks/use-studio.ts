@@ -11,7 +11,7 @@
  *   - useSynthesisJob     the background render job lifecycle
  *   - usePlayback         transport controls for the rendered audio
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -163,6 +163,97 @@ export function useEngineSelection(engines: EngineInfo[]): EngineSelection {
 /* Synthesis job                                                               */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/* Play while rendering                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Plays each finished chunk of a running render back to back, so sound starts
+ * after the first sentence instead of after the whole text. The server hands
+ * out chunks that already include the pauses and fades, so they join
+ * seamlessly. `prime` must run inside the click handler (audio autoplay rules).
+ */
+function useLiveAudio(job: JobStatus | null) {
+  const contextRef = useRef<AudioContext | null>(null);
+  const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
+  const nextTimeRef = useRef(0);
+  const fetchedRef = useRef(0);
+  const jobIdRef = useRef<string | null>(null);
+  const chainRef = useRef<Promise<void>>(Promise.resolve());
+  const epochRef = useRef(0); // bumped on stop so late fetches are dropped
+
+  const stop = useCallback(() => {
+    epochRef.current += 1;
+    for (const source of sourcesRef.current) {
+      try {
+        source.stop();
+      } catch {
+        /* already finished */
+      }
+    }
+    sourcesRef.current = [];
+    nextTimeRef.current = 0;
+    fetchedRef.current = 0;
+    jobIdRef.current = null;
+    chainRef.current = Promise.resolve();
+  }, []);
+
+  const prime = useCallback(() => {
+    stop();
+    try {
+      contextRef.current ??= new AudioContext();
+      void contextRef.current.resume();
+    } catch {
+      contextRef.current = null; // no Web Audio: the final file still plays
+    }
+  }, [stop]);
+
+  const ready = job?.chunks_ready ?? 0;
+  useEffect(() => {
+    const context = contextRef.current;
+    if (!job || !context || ready <= 0) return;
+    if (jobIdRef.current !== job.id) {
+      jobIdRef.current = job.id;
+      fetchedRef.current = 0;
+    }
+    const from = fetchedRef.current;
+    if (ready <= from) return;
+    fetchedRef.current = ready;
+
+    const epoch = epochRef.current;
+    const jobId = job.id;
+    for (let index = from; index < ready; index += 1) {
+      chainRef.current = chainRef.current
+        .then(async () => {
+          if (epoch !== epochRef.current) return;
+          const data = await api.getJobChunk(jobId, index);
+          if (epoch !== epochRef.current) return;
+          const buffer = await context.decodeAudioData(data);
+          if (epoch !== epochRef.current) return;
+          const source = context.createBufferSource();
+          source.buffer = buffer;
+          source.connect(context.destination);
+          const startAt = Math.max(context.currentTime + 0.05, nextTimeRef.current);
+          source.start(startAt);
+          nextTimeRef.current = startAt + buffer.duration;
+          sourcesRef.current.push(source);
+        })
+        .catch(() => undefined); // a missed chunk only costs live audio, not the final file
+    }
+  }, [job, ready]);
+
+  useEffect(
+    () => () => {
+      stop();
+      void contextRef.current?.close();
+      contextRef.current = null;
+    },
+    [stop],
+  );
+
+  return { prime, stop };
+}
+
 /** Consecutive failed status polls before a render is declared lost. */
 const MAX_POLL_FAILURES = 3;
 
@@ -215,6 +306,11 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
   const [elapsed, setElapsed] = useState(0);
 
   const isRunning = job?.state === "queued" || job?.state === "running";
+  const live = useLiveAudio(job);
+
+  useEffect(() => {
+    if (job?.state === "failed" || job?.state === "cancelled") live.stop();
+  }, [job?.state, live]);
 
   useEffect(() => {
     if (!job || !isRunning) return;
@@ -283,14 +379,16 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
     }
     const selected = engines.find((engine) => engine.name === engineName);
     if (online && !selected?.is_available) {
-      toast.error("That engine isn't installed", {
-        description: `Download the ${engineName} weights from the Models screen.`,
+      toast.error(`${engineName} isn't ready`, {
+        description:
+          "Its Python package is not installed in the engine's environment. Weights are downloaded from the Models screen, but the package comes first.",
       });
       return;
     }
 
     setStarting(true);
     setDuration(0);
+    live.prime();
     onRenderQueued?.();
 
     try {
@@ -329,6 +427,7 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
     engines,
     engineName,
     isRunning,
+    live,
     online,
     onRenderQueued,
     params,
@@ -340,6 +439,7 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
 
   const cancel = useCallback(async () => {
     if (!job || !isRunning) return;
+    live.stop();
     try {
       setJob(await api.cancelJob(job.id));
       toast.message("Cancelling the render");
@@ -348,7 +448,7 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
         description: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [isRunning, job]);
+  }, [isRunning, job, live]);
 
   return {
     job,

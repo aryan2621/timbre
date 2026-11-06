@@ -59,7 +59,7 @@ class AppConfig:
     # Maximum characters rendered in one pass. Generation cost grows roughly
     # quadratically with chunk length, so smaller chunks render noticeably
     # faster (and start playing sooner) at the cost of slightly more joins.
-    max_chars_per_chunk: int = 110
+    max_chars_per_chunk: int = 200
 
     # Logging
     log_level: str = "INFO"
