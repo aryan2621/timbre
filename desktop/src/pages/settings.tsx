@@ -1,20 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { motion } from "motion/react";
 import {
-  AudioLines,
-  Cpu,
   Keyboard,
-  Monitor,
   RotateCcw,
   Save,
-  ScrollText,
   Search,
   Settings2,
   ShieldCheck,
-  SlidersHorizontal,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,13 +31,9 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { api } from "@/lib/api";
 import { useEngineStatus } from "@/lib/engine-status";
-import { mockEngines, mockSettings } from "@/lib/mock";
 import { SHORTCUTS, formatShortcut, type ShortcutGroup } from "@/lib/shortcuts";
-import { useTheme, type Theme } from "@/lib/theme";
 import { useSettings } from "@/hooks/use-settings";
-import type { AppSettings, EngineInfo } from "@/lib/types";
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   "Navigate",

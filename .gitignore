@@ -64,3 +64,6 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo
+
+# Frozen API sidecar (built by desktop/scripts/build-sidecar.sh)
+desktop/src-tauri/binaries/

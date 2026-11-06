@@ -5,6 +5,13 @@ import type {
   ModelInfo,
   VoiceProfile,
 } from "./types";
+import { IS_TAURI } from "./desktop";
+
+/**
+ * Demo data is for browser previews only. In the desktop app it would show
+ * voices and models that do not exist, so an unreachable engine shows nothing.
+ */
+export const demoList = <T,>(list: T[]): T[] => (IS_TAURI ? [] : list);
 
 const now = new Date();
 const daysAgo = (n: number) =>

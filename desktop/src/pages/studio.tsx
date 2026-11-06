@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   AudioLines,
   AudioWaveform,
@@ -56,8 +56,8 @@ import {
   WaveformPlayer,
   type WaveformPlayerHandle,
 } from "@/components/waveform/waveform-player";
-import { api } from "@/lib/api";
-import { useAppActions } from "@/lib/app-context";
+import { useEngineSelection, useLibrary, useSynthesisJob } from "@/hooks/use-studio";
+import { useApp, useAppActions } from "@/lib/app-context";
 import {
   downloadBlob,
   IS_TAURI,
@@ -67,14 +67,12 @@ import {
 import { useEngineStatus } from "@/lib/engine-status";
 import {
   estimateDurationSeconds,
-  formatDuration,
   formatTimecode,
 } from "@/lib/format";
 import { countWords } from "@/lib/chunk-preview";
-import { mockEngines, mockVoices } from "@/lib/mock";
 import { useHotkeys } from "@/lib/use-hotkeys";
 import { useTheme } from "@/lib/theme";
-import type { EngineInfo, JobStatus, SynthesisParams, VoiceProfile } from "@/lib/types";
+import type { EngineInfo, SynthesisParams, VoiceProfile } from "@/lib/types";
 
 const SCRIPT_SUGGESTIONS = [
   {
@@ -471,230 +469,56 @@ function DrawerContent({
 
 export function StudioPage() {
   const { status: connection } = useEngineStatus();
+  const { navigate } = useApp();
   const { resolvedTheme } = useTheme();
   const online = connection !== "offline";
   const canvas = resolvedTheme === "dark" ? "bg-background" : "bg-white";
 
-  const [voices, setVoices] = useState<VoiceProfile[]>([]);
-  const [engines, setEngines] = useState<EngineInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [voice, setVoice] = useState<VoiceProfile | null>(null);
-  const [engineName, setEngineName] = useState("Chatterbox TTS");
+  const { voices, engines, loading, voice, setVoice } = useLibrary(online);
+  const { engineName, setEngineName, activeEngine, params, update } =
+    useEngineSelection(engines);
   const [text, setText] = useState("");
-  const [params, setParams] = useState<SynthesisParams>(mockEngines[0].default_params);
   const [randomSeed, setRandomSeed] = useState(true);
   const [sentencePause, setSentencePause] = useState(250);
-
-  const [job, setJob] = useState<JobStatus | null>(null);
   const [renderedText, setRenderedText] = useState("");
   const [renderedConfiguration, setRenderedConfiguration] = useState<{
     voiceName: string;
     engineName: string;
     params: SynthesisParams;
   } | null>(null);
-  const [starting, setStarting] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(false);
 
   const scriptRef = useRef<HTMLTextAreaElement>(null);
   const waveformRef = useRef<WaveformPlayerHandle>(null);
 
-  const activeEngine = useMemo(
-    () => engines.find((engine) => engine.name === engineName) ?? engines[0],
-    [engineName, engines],
-  );
-
-  const isRunning = job?.state === "queued" || job?.state === "running";
-  const jobId = job?.id;
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!online) {
-        if (!cancelled) {
-          setVoices(mockVoices);
-          setEngines(mockEngines);
-          setLoading(false);
-        }
-        return;
-      }
-      try {
-        const [nextVoices, nextEngines] = await Promise.all([
-          api.listVoices(),
-          api.listEngines(),
-        ]);
-        if (cancelled) return;
-        setVoices(nextVoices);
-        setEngines(nextEngines);
-      } catch {
-        if (!cancelled) {
-          setVoices(mockVoices);
-          setEngines(mockEngines);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [online]);
-
-  useEffect(() => {
-    if (!voices.length) return;
-    setVoice((previous) => {
-      if (previous && voices.some((item) => item.id === previous.id)) return previous;
-      return voices[0] ?? null;
+  const { job, starting, audioUrl, duration, setDuration, isRunning, synthesize, cancel } =
+    useSynthesisJob({
+      voice,
+      engines,
+      engineName,
+      text,
+      params,
+      randomSeed,
+      sentencePause,
+      online,
+      onRenderQueued: () => {
+        setRenderedText(text.trim());
+        setRenderedConfiguration(
+          voice
+            ? {
+                voiceName: voice.name,
+                engineName,
+                params: { ...params, seed: randomSeed ? -1 : params.seed },
+              }
+            : null,
+        );
+        setPlaying(false);
+      },
     });
-  }, [voices]);
-
-  useEffect(() => {
-    if (!engines.length) return;
-    const current = engines.find((engine) => engine.name === engineName);
-    if (!current?.is_available) {
-      const preferred = engines.find((engine) => engine.is_available) ?? engines[0];
-      if (preferred && preferred.name !== engineName) setEngineName(preferred.name);
-    }
-  }, [engines, engineName]);
-
-  useEffect(() => {
-    if (!activeEngine) return;
-    setParams((previous) => ({
-      ...activeEngine.default_params,
-      language: activeEngine.supported_languages.includes(previous.language)
-        ? previous.language
-        : (activeEngine.supported_languages[0] ?? "en"),
-      enable_watermark: previous.enable_watermark,
-    }));
-  }, [activeEngine]);
 
   const peaks = job?.peaks?.length ? job.peaks : null;
   const words = countWords(text);
   const estimatedSeconds = estimateDurationSeconds(words, params.speed);
-
-  useEffect(() => {
-    if (!jobId || !isRunning) return;
-    const timer = window.setInterval(async () => {
-      try {
-        const next = await api.getJob(jobId);
-        setJob(next);
-        if (next.state === "done") {
-          setAudioUrl(next.audio_url ? api.audioUrl(next.audio_url) : null);
-          setDuration(next.duration_seconds ?? 0);
-          toast.success("Render complete", {
-            description: `${formatDuration(next.duration_seconds)} of audio is ready.`,
-          });
-        } else if (next.state === "failed") {
-          toast.error("Render failed", { description: next.error ?? undefined });
-        }
-      } catch (error) {
-        console.error("Could not refresh render status", error);
-      }
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [jobId, isRunning]);
-
-  const update = useCallback(
-    (
-      patch:
-        | Partial<SynthesisParams>
-        | ((previous: SynthesisParams) => SynthesisParams),
-    ) =>
-      setParams((previous) =>
-        typeof patch === "function" ? patch(previous) : { ...previous, ...patch },
-      ),
-    [],
-  );
-
-  const synthesize = useCallback(async () => {
-    if (isRunning) return;
-    if (!voice) {
-      toast.error("Select a voice profile first", {
-        description: "Create one from the Voices screen if the library is empty.",
-      });
-      return;
-    }
-    if (!text.trim()) {
-      toast.error("Write something to synthesize");
-      return;
-    }
-    const selected = engines.find((engine) => engine.name === engineName);
-    if (online && !selected?.is_available) {
-      toast.error("That engine isn't installed", {
-        description: `Download the ${engineName} weights from the Models screen.`,
-      });
-      return;
-    }
-
-    setStarting(true);
-    setRenderedText(text.trim());
-    const renderParams = {
-      ...params,
-      seed: randomSeed ? -1 : params.seed,
-    };
-    const configuration = {
-      voiceName: voice.name,
-      engineName,
-      params: renderParams,
-    };
-    setDuration(0);
-    setPlaying(false);
-
-    try {
-      const created = await api.synthesize({
-        voice_id: voice.id,
-        engine_name: engineName,
-        text: text.trim(),
-        params: renderParams,
-        sentence_pause_ms: sentencePause,
-      });
-      setRenderedConfiguration(configuration);
-      setJob(created);
-      setAudioUrl(null);
-      toast.message("Render started", {
-        description: `${created.total_chunks || 1} sentence chunk${created.total_chunks === 1 ? "" : "s"
-          } queued.`,
-      });
-    } catch (error) {
-      toast.error("Could not start the render", {
-        description: error instanceof Error ? error.message : String(error),
-      });
-      setJob((previous) =>
-        previous
-          ? {
-            ...previous,
-            state: "failed" as const,
-            error: error instanceof Error ? error.message : String(error),
-            message: "Render failed",
-          }
-          : previous,
-      );
-    } finally {
-      setStarting(false);
-    }
-  }, [
-    engines,
-    engineName,
-    isRunning,
-    online,
-    params,
-    randomSeed,
-    sentencePause,
-    text,
-    voice,
-  ]);
-
-  const cancel = useCallback(async () => {
-    if (!job || !isRunning) return;
-    try {
-      setJob(await api.cancelJob(job.id));
-      toast.message("Cancelling the render");
-    } catch (error) {
-      toast.error("Could not cancel", {
-        description: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [isRunning, job]);
 
   const exportAudio = useCallback(async () => {
     if (!audioUrl) {
@@ -775,7 +599,7 @@ export function StudioPage() {
           <div className="flex shrink-0 items-center gap-2">
             <Badge variant="outline" className="gap-1.5 rounded-full px-2.5 py-1 font-normal">
               <span className={`size-1.5 rounded-full ${connection === "offline" ? "bg-status-warning" : "bg-status-success"}`} />
-              <span className="hidden sm:inline">{connection === "offline" ? "Offline demo" : "Engine ready"}</span>
+              <span className="hidden sm:inline">{connection === "offline" ? (IS_TAURI ? "Engine offline" : "Offline demo") : "Engine ready"}</span>
             </Badge>
             <SheetTrigger
               className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm text-foreground transition-colors hover:bg-muted"
@@ -786,6 +610,24 @@ export function StudioPage() {
             </SheetTrigger>
           </div>
         </header>
+
+        {!loading && voices.length === 0 && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-surface-accent px-4 py-3 text-sm sm:px-6"
+          >
+            <span>
+              {online
+                ? "No voices yet. Add a reference recording to start cloning."
+                : "The engine is not running, so no voices could be loaded."}
+            </span>
+            {online && (
+              <Button size="sm" onClick={() => navigate("voices")}>
+                Add a voice
+              </Button>
+            )}
+          </div>
+        )}
 
         <section className="flex min-h-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1 flex-col justify-center px-4 sm:px-6">

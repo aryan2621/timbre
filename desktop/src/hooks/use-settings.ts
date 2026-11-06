@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { mockEngines, mockSettings } from "@/lib/mock";
+import { mockEngines, mockSettings, demoList } from "@/lib/mock";
 import { useTheme, type Theme } from "@/lib/theme";
 import type { AppSettings, EngineInfo } from "@/lib/types";
 
@@ -118,7 +118,7 @@ export function useSettings(online: boolean): SettingsState {
 
   const [settings, setSettings] = useState<AppSettings>(mockSettings);
   const [saved, setSaved] = useState<AppSettings>(mockSettings);
-  const [engines, setEngines] = useState<EngineInfo[]>(mockEngines);
+  const [engines, setEngines] = useState<EngineInfo[]>(demoList(mockEngines));
   const [activeSection, setActiveSection] = useState("appearance");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);

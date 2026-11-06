@@ -16,7 +16,7 @@ import type { RefObject } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
-import { mockEngines, mockVoices } from "@/lib/mock";
+import { demoList, mockEngines, mockVoices } from "@/lib/mock";
 import type {
   EngineInfo,
   JobStatus,
@@ -38,8 +38,10 @@ export interface Library {
 }
 
 /**
- * Loads the voice profiles and the engine catalogue, falling back to the
- * bundled demo data when the sidecar is unreachable.
+ * Loads the voice profiles and the engine catalogue. The bundled demo data is
+ * only used in a plain browser session: in the desktop app, fake voices would
+ * fail every render with "Voice not found", so an unreachable engine shows an
+ * empty library instead.
  */
 export function useLibrary(online: boolean): Library {
   const [voices, setVoices] = useState<VoiceProfile[]>([]);
@@ -50,10 +52,13 @@ export function useLibrary(online: boolean): Library {
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      const fallback = () => {
+        setVoices(demoList(mockVoices));
+        setEngines(demoList(mockEngines));
+      };
       if (!online) {
         if (!cancelled) {
-          setVoices(mockVoices);
-          setEngines(mockEngines);
+          fallback();
           setLoading(false);
         }
         return;
@@ -67,10 +72,7 @@ export function useLibrary(online: boolean): Library {
         setVoices(nextVoices);
         setEngines(nextEngines);
       } catch {
-        if (!cancelled) {
-          setVoices(mockVoices);
-          setEngines(mockEngines);
-        }
+        if (!cancelled) fallback();
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -101,7 +103,9 @@ export interface EngineSelection {
   setEngineName: (name: string) => void;
   activeEngine: EngineInfo | undefined;
   params: SynthesisParams;
-  update: (patch: Partial<SynthesisParams>) => void;
+  update: (
+    patch: Partial<SynthesisParams> | ((previous: SynthesisParams) => SynthesisParams),
+  ) => void;
 }
 
 /**
@@ -141,8 +145,14 @@ export function useEngineSelection(engines: EngineInfo[]): EngineSelection {
   }, [activeEngine]);
 
   const update = useCallback(
-    (patch: Partial<SynthesisParams>) =>
-      setParams((previous) => ({ ...previous, ...patch })),
+    (
+      patch:
+        | Partial<SynthesisParams>
+        | ((previous: SynthesisParams) => SynthesisParams),
+    ) =>
+      setParams((previous) =>
+        typeof patch === "function" ? patch(previous) : { ...previous, ...patch },
+      ),
     [],
   );
 
@@ -152,6 +162,9 @@ export function useEngineSelection(engines: EngineInfo[]): EngineSelection {
 /* -------------------------------------------------------------------------- */
 /* Synthesis job                                                               */
 /* -------------------------------------------------------------------------- */
+
+/** Consecutive failed status polls before a render is declared lost. */
+const MAX_POLL_FAILURES = 3;
 
 export interface SynthesisJobOptions {
   voice: VoiceProfile | null;
@@ -206,9 +219,11 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
   useEffect(() => {
     if (!job || !isRunning) return;
     const jobId = job.id;
+    let failures = 0;
     const timer = window.setInterval(async () => {
       try {
         const next = await api.getJob(jobId);
+        failures = 0;
         setJob(next);
         if (next.state === "done") {
           setAudioUrl(next.audio_url ? api.audioUrl(next.audio_url) : null);
@@ -220,7 +235,22 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
           toast.error("Render failed", { description: next.error ?? undefined });
         }
       } catch {
-        // The job may have been pruned between polls; keep polling.
+        // A restarted engine forgets its jobs and a dead one never answers:
+        // give up after a few misses instead of spinning forever.
+        failures += 1;
+        if (failures >= MAX_POLL_FAILURES) {
+          setJob((previous) =>
+            previous && previous.id === jobId
+              ? {
+                  ...previous,
+                  state: "failed" as const,
+                  error: "Lost connection to the engine.",
+                  message: "Render failed",
+                }
+              : previous,
+          );
+          toast.error("Render failed", { description: "Lost connection to the engine." });
+        }
       }
     }, 1000);
     return () => window.clearInterval(timer);

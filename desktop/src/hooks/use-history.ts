@@ -18,7 +18,7 @@ import {
   pickSavePath,
   writeBlobToPath,
 } from "@/lib/desktop";
-import { mockHistory } from "@/lib/mock";
+import { mockHistory, demoList } from "@/lib/mock";
 import type { HistoryEntry } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
@@ -56,7 +56,7 @@ export function useHistoryEntries(
     async function load() {
       if (!online) {
         if (!cancelled) {
-          setEntries(mockHistory);
+          setEntries(demoList(mockHistory));
           setLoading(false);
         }
         return;
@@ -65,7 +65,7 @@ export function useHistoryEntries(
         const next = await api.listHistory();
         if (!cancelled) setEntries(next);
       } catch {
-        if (!cancelled) setEntries(mockHistory);
+        if (!cancelled) setEntries(demoList(mockHistory));
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -2,7 +2,7 @@
 
 **A 100% Local, Offline Desktop Application for Zero-Shot Voice Cloning & Text-to-Speech.**
 
-Runs entirely on your local machine using PySide6 (Qt 6) and PyTorch. No cloud APIs, no subscriptions, zero telemetry, and complete privacy.
+Runs entirely on your local machine: a Tauri + React desktop app talking to a local Python (PyTorch) engine. No cloud APIs, no subscriptions, zero telemetry, and complete privacy.
 
 ---
 
@@ -99,32 +99,31 @@ python voiceclone/main.py
 
 ## Desktop Frontend (Tauri + React)
 
-A redesigned desktop shell lives in `desktop/`. It replaces the Qt UI with a
-Tauri 2 window, React + TypeScript, Tailwind CSS v4 and shadcn/ui, while the
-Python sidecar keeps running every engine, audio, and SQLite operation. The
-PySide6 app is untouched and remains a working fallback.
+The desktop app lives in `desktop/`: a Tauri 2 window with React, TypeScript,
+Tailwind CSS v4 and shadcn/ui. The Python API in `app/` runs every engine,
+audio and SQLite operation. The Tauri shell starts the API itself and stops it
+on exit; each launch uses a random token (`VOICECLONE_API_TOKEN`) so only the
+app can call it.
 
 ### Requirements
 - Node.js 20+ and pnpm
 - Rust toolchain (`cargo`, `rustc`) for the Tauri shell
-- The Python environment from the setup steps above
+- The Python environment from the setup steps above, in `.venv` at the repo root
 
-### Run both processes
+### Run
 ```bash
 cd desktop
 pnpm install
-pnpm dev:all        # Python API on 127.0.0.1:8756 + Tauri window
+pnpm tauri dev      # starts the Tauri window and the Python API
 ```
 
-Or start them separately:
+To run the API on its own (no token, any local caller is accepted):
 ```bash
-pnpm api            # FastAPI sidecar only (from desktop/)
-pnpm tauri dev      # Tauri window only
+pnpm api            # FastAPI on 127.0.0.1:8756 (from desktop/)
 ```
 
-The frontend polls `http://127.0.0.1:8756/api/health`. If the sidecar is not
-running, every screen falls back to realistic demo data so the UI can still be
-explored (rendering is disabled in that mode).
+In the desktop app an unreachable engine shows "Engine offline" and empty
+lists. Only a plain browser session (`pnpm dev`) falls back to demo data.
 
 ### Layout
 | Path | Purpose |
@@ -133,7 +132,7 @@ explored (rendering is disabled in that mode).
 | `desktop/src/lib/api.ts` | Typed HTTP client for the sidecar |
 | `desktop/src/components/waveform.tsx` | Canvas waveform with seek + playhead |
 | `app/api/server.py` | FastAPI transport: voices, history, jobs, settings, models |
-| `app/data/model_catalog.py` | Shared model metadata for Qt UI and API |
+| `app/data/model_catalog.py` | Shared model metadata (downloads, sizes, SHA-256) |
 
 Both frontends share the same SQLite database and voice profiles, so profiles
 created in one appear in the other.
@@ -183,10 +182,11 @@ with a phase vocoder (librosa) after synthesis, which keeps the pitch intact.
 ### Production build
 ```bash
 cd desktop
-pnpm tauri build
+pnpm build:app      # freezes the API with PyInstaller, then runs `tauri build`
 ```
-Packaging the Python sidecar into the bundle (PyInstaller + Tauri sidecar
-configuration) is the remaining step before shipping an installer.
+`pnpm build:sidecar` alone builds just the frozen API into
+`src-tauri/binaries/` (macOS and Linux; the PyInstaller build with PyTorch is
+large and may need extra `--hidden-import` flags for your engines).
 
 ---
 
@@ -224,25 +224,6 @@ python -m unittest discover -s voiceclone/tests -p "test_*.py" -v
 ```
 
 ---
-
-## Standalone Executable Packaging (PyInstaller)
-
-### Build for Windows (.exe):
-```powershell
-pyinstaller voiceclone/scripts/build_windows.spec
-```
-Outputs standalone directory in `dist/VoiceCloneStudio/VoiceCloneStudio.exe`.
-
-### Build for macOS (.app bundle):
-```bash
-pyinstaller voiceclone/scripts/build_mac.spec
-```
-Outputs application bundle in `dist/VoiceCloneStudio.app`.
-
-### Build for Linux:
-```bash
-bash voiceclone/scripts/build_linux.sh
-```
 
 ---
 

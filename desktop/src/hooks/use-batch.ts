@@ -20,7 +20,7 @@ import {
   pickScriptFile,
   readTextFile,
 } from "@/lib/desktop";
-import { mockEngines, mockVoices } from "@/lib/mock";
+import { mockEngines, mockVoices, demoList } from "@/lib/mock";
 import type { BatchJob, EngineInfo, VoiceProfile } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
@@ -41,7 +41,7 @@ export interface BatchLibrary {
 /** Loads the voice profiles and engine catalogue used by the batch runner. */
 export function useBatchLibrary(online: boolean): BatchLibrary {
   const [voices, setVoices] = useState<VoiceProfile[]>([]);
-  const [engines, setEngines] = useState<EngineInfo[]>(mockEngines);
+  const [engines, setEngines] = useState<EngineInfo[]>(demoList(mockEngines));
   const [voice, setVoice] = useState<VoiceProfile | null>(null);
   const [engineName, setEngineName] = useState("Chatterbox TTS");
   const [loading, setLoading] = useState(true);
@@ -51,8 +51,8 @@ export function useBatchLibrary(online: boolean): BatchLibrary {
     async function load() {
       if (!online) {
         if (!cancelled) {
-          setVoices(mockVoices);
-          setEngines(mockEngines);
+          setVoices(demoList(mockVoices));
+          setEngines(demoList(mockEngines));
           setLoading(false);
         }
         return;
@@ -64,11 +64,11 @@ export function useBatchLibrary(online: boolean): BatchLibrary {
         ]);
         if (cancelled) return;
         setVoices(nextVoices);
-        setEngines(nextEngines.length > 0 ? nextEngines : mockEngines);
+        setEngines(nextEngines.length > 0 ? nextEngines : demoList(mockEngines));
       } catch {
         if (!cancelled) {
-          setVoices(mockVoices);
-          setEngines(mockEngines);
+          setVoices(demoList(mockVoices));
+          setEngines(demoList(mockEngines));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -307,11 +307,13 @@ export function useBatchJob(options: BatchJobOptions): BatchJobState {
     if (!job || !running) return;
     const jobId = job.id;
     let cancelled = false;
+    let failures = 0;
 
     const timer = window.setInterval(async () => {
       try {
         const next = await api.getBatch(jobId);
         if (cancelled) return;
+        failures = 0;
         setJob(next);
         if (next.state === "done") {
           toast.success("Batch complete", {
@@ -321,7 +323,22 @@ export function useBatchJob(options: BatchJobOptions): BatchJobState {
           toast.error("Batch failed", { description: next.error ?? undefined });
         }
       } catch {
-        /* transient poll failure: keep the last known state */
+        // A dead or restarted engine never answers (or forgets the job):
+        // stop after a few misses instead of spinning forever.
+        failures += 1;
+        if (failures >= 3 && !cancelled) {
+          setJob((previous) =>
+            previous && previous.id === jobId
+              ? {
+                  ...previous,
+                  state: "failed",
+                  error: "Lost connection to the engine.",
+                  message: "Batch failed",
+                }
+              : previous,
+          );
+          toast.error("Batch failed", { description: "Lost connection to the engine." });
+        }
       }
     }, 1000);
 

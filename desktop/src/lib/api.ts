@@ -12,6 +12,8 @@ import type { VoiceProfile } from "@/lib/types";
 import type { EngineInfo } from "@/lib/types";
 import type { HistoryEntry } from "@/lib/types";
 import type { ModelInfo } from "@/lib/types";
+import { invoke } from "@tauri-apps/api/core";
+import { IS_TAURI } from "@/lib/desktop";
 import type { DownloadJob } from "@/lib/types";
 import type { AppSettings } from "@/lib/types";
 import type { SynthesisParams } from "@/lib/types";
@@ -21,10 +23,34 @@ import type { BatchJob } from "@/lib/types";
 const API_BASE =
   import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8756";
 
+/**
+ * The desktop shell starts the API with a per-launch secret and hands it to
+ * us over IPC. Outside Tauri (browser dev) the API runs without one.
+ */
+let apiToken = "";
+const tokenReady: Promise<void> = IS_TAURI
+  ? invoke<string>("api_token")
+      .then((token) => {
+        apiToken = token;
+      })
+      .catch(() => undefined)
+  : Promise.resolve();
+
+/** For `<audio src>` and other URLs that cannot carry a header. */
+function withToken(url: string): string {
+  if (!apiToken) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}token=${apiToken}`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  await tokenReady;
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     ...init,
+    headers: {
+      "Content-Type": "application/json",
+      "X-VoiceClone-Token": apiToken,
+      ...(init?.headers ?? {}),
+    },
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
@@ -205,15 +231,15 @@ export async function cancelBatch(id: string): Promise<BatchJob> {
 
 /** URL builders */
 export function audioUrl(path: string): string {
-  return `${API_BASE}${path}`;
+  return withToken(`${API_BASE}${path}`);
 }
 
 export function clipUrl(voiceId: number): string {
-  return `${API_BASE}/api/voices/${voiceId}/clip`;
+  return withToken(`${API_BASE}/api/voices/${voiceId}/clip`);
 }
 
 export function jobAudioUrl(jobId: string): string {
-  return `${API_BASE}/api/jobs/${jobId}/audio`;
+  return withToken(`${API_BASE}/api/jobs/${jobId}/audio`);
 }
 
 /** Export the api object with all functions for easy import */

@@ -47,7 +47,7 @@ import { useApp, useAppActions } from "@/lib/app-context";
 import { pickAudioFile } from "@/lib/desktop";
 import { useEngineStatus } from "@/lib/engine-status";
 import { formatDuration } from "@/lib/format";
-import { mockEngines, mockVoices } from "@/lib/mock";
+import { mockEngines, mockVoices, demoList } from "@/lib/mock";
 import type { EngineInfo, VoiceProfile } from "@/lib/types";
 
 type ConsentFilter = "all" | "confirmed" | "missing";
@@ -60,7 +60,7 @@ export function VoicesPage() {
   const { intent, consumeIntent } = useApp();
 
   const [voices, setVoices] = useState<VoiceProfile[]>([]);
-  const [engines, setEngines] = useState<EngineInfo[]>(mockEngines);
+  const [engines, setEngines] = useState<EngineInfo[]>(demoList(mockEngines));
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [consentFilter, setConsentFilter] = useState<ConsentFilter>("all");
@@ -79,18 +79,18 @@ export function VoicesPage() {
 
   const load = useCallback(async () => {
     if (!online) {
-      setVoices(mockVoices);
-      setEngines(mockEngines);
+      setVoices(demoList(mockVoices));
+      setEngines(demoList(mockEngines));
       setLoading(false);
       return;
     }
     try {
       const [nextVoices, nextEngines] = await Promise.all([api.listVoices(), api.listEngines()]);
       setVoices(nextVoices);
-      setEngines(nextEngines.length > 0 ? nextEngines : mockEngines);
+      setEngines(nextEngines.length > 0 ? nextEngines : demoList(mockEngines));
     } catch {
-      setVoices(mockVoices);
-      setEngines(mockEngines);
+      setVoices(demoList(mockVoices));
+      setEngines(demoList(mockEngines));
     } finally {
       setLoading(false);
     }

@@ -40,7 +40,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { api } from "@/lib/api";
 import { useEngineStatus } from "@/lib/engine-status";
 import { formatBytes } from "@/lib/format";
-import { mockModels } from "@/lib/mock";
+import { mockModels, demoList } from "@/lib/mock";
 import type { DownloadJob, ModelInfo } from "@/lib/types";
 
 const ACTIVE_STATES = new Set(["queued", "running"]);
@@ -65,7 +65,7 @@ export function ModelsPage() {
 
   const load = useCallback(async () => {
     if (!online) {
-      setModels(mockModels);
+      setModels(demoList(mockModels));
       setLoading(false);
       return;
     }
@@ -82,7 +82,7 @@ export function ModelsPage() {
         return merged;
       });
     } catch {
-      setModels(mockModels);
+      setModels(demoList(mockModels));
     } finally {
       setLoading(false);
     }
