@@ -1,0 +1,79 @@
+name: Build desktop app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest # Apple Silicon
+          - os: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libsndfile1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Python environment (the sidecar script expects .venv)
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -e '.[dev]'
+
+      - name: Python tests
+        run: .venv/bin/pytest -q
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          package_json_file: desktop/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and type-check
+        working-directory: desktop
+        run: |
+          pnpm exec tsc --noEmit
+          pnpm lint --quiet
+
+      - name: Build app with the bundled Python sidecar
+        working-directory: desktop
+        run: pnpm build:app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voiceclone-${{ runner.os }}
+          path: |
+            desktop/src-tauri/target/release/bundle/**/*.dmg
+            desktop/src-tauri/target/release/bundle/**/*.AppImage
+            desktop/src-tauri/target/release/bundle/**/*.deb
+          if-no-files-found: error
