@@ -307,3 +307,26 @@
     transparent
   );
 }
+
+
+/* Render progress before the first sentence finishes: a sliding bar, not a flat empty one. */
+@keyframes progress-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.progress-indeterminate {
+  animation: progress-indeterminate 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-indeterminate {
+    width: 100%;
+    animation: none;
+    opacity: 0.4;
+  }
+}

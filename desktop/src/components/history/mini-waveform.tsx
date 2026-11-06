@@ -38,12 +38,28 @@ export function MiniWaveform({
   }, [bars, peaks]);
 
   if (!columns.length) {
+    // Loading, or too short to draw: a flat baseline keeps the row's height
+    // and shape instead of an empty grey block that reads as a broken input.
     return (
-      <div
-        className={cn("rounded bg-muted/70", className)}
-        style={{ height }}
+      <svg
+        className={cn("w-full overflow-visible", className)}
+        height={height}
+        viewBox={`0 0 ${bars} 1`}
+        preserveAspectRatio="none"
         aria-hidden
-      />
+      >
+        {Array.from({ length: bars }, (_, index) => (
+          <rect
+            key={index}
+            x={index}
+            y={0.46}
+            width={0.62}
+            height={0.08}
+            rx={0.3}
+            className="fill-border/70"
+          />
+        ))}
+      </svg>
     );
   }
 

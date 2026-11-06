@@ -170,7 +170,7 @@ export function HistoryPage() {
       }),
       columnHelper.accessor("prompt_text", {
         header: "Script",
-        size: 320,
+        size: 290,
         enableSorting: false,
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -204,7 +204,7 @@ export function HistoryPage() {
       }),
       columnHelper.display({
         id: "actions",
-        size: 120,
+        size: 150,
         header: "",
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1">
@@ -212,8 +212,12 @@ export function HistoryPage() {
               <TooltipTrigger
                 render={
                   <Button
-                    variant="ghost"
                     size="icon-sm"
+                    className={
+                      playingId === row.original.id
+                        ? "rounded-full"
+                        : "rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                    }
                     aria-label={
                       playingId === row.original.id
                         ? "Pause the take"
@@ -223,12 +227,17 @@ export function HistoryPage() {
                   />
                 }
               >
-                {playingId === row.original.id ? <Pause /> : <Play />}
+                {playingId === row.original.id ? (
+                  <Pause className="fill-current" />
+                ) : (
+                  <Play className="translate-x-px fill-current" />
+                )}
               </TooltipTrigger>
               <TooltipContent>
                 {playingId === row.original.id ? "Pause" : "Play"}
               </TooltipContent>
             </Tooltip>
+            <span aria-hidden className="mx-1 h-4 w-px bg-border" />
             <Tooltip>
               <TooltipTrigger
                 render={

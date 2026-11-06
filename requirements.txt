@@ -18,6 +18,9 @@ pyloudnorm==0.1.1
 # Configuration & File System
 platformdirs==4.2.1
 
+# perth (Chatterbox watermark) imports pkg_resources, removed in setuptools 81
+setuptools<81
+
 # Local HTTP sidecar (Tauri desktop frontend)
 fastapi==0.115.6
 uvicorn==0.34.0

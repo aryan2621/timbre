@@ -77,19 +77,19 @@ import type { EngineInfo, SynthesisParams, VoiceProfile } from "@/lib/types";
 const SCRIPT_SUGGESTIONS = [
   {
     title: "Podcast intro",
-    description: "Read this like a warm podcast intro",
+    description: "Welcome back. Today we look at how small habits quietly change everything.",
     icon: Podcast,
     tint: "bg-[#f5e8df] text-[#b85d3e]",
   },
   {
     title: "Calm and reassuring",
-    description: "Make this sound calm and reassuring",
+    description: "Take a breath. Everything is on track, and there is nothing you need to do right now.",
     icon: Heart,
     tint: "bg-[#eaf0e7] text-[#557650]",
   },
   {
     title: "Product announcement",
-    description: "Create a short product announcement",
+    description: "Introducing the new Studio: record your voice once, and it is ready whenever you need it.",
     icon: Megaphone,
     tint: "bg-[#eeebf5] text-[#75628f]",
   },
@@ -653,7 +653,7 @@ export function StudioPage() {
                         setText(suggestion.description);
                         scriptRef.current?.focus();
                       }}
-                      className="group rounded-2xl border border-border/80 bg-card/80 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card hover:shadow-[var(--shadow-soft)]"
+                      className="group flex flex-col items-stretch justify-start rounded-2xl border border-border/80 bg-card/80 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card hover:shadow-[var(--shadow-soft)]"
                     >
                       <span className="mb-3 flex items-center justify-between gap-2">
                         <span className={`flex size-8 items-center justify-center rounded-xl ${suggestion.tint}`}>
@@ -664,7 +664,7 @@ export function StudioPage() {
                       <span className="mb-1 block text-xs font-medium text-primary">
                         {suggestion.title}
                       </span>
-                      <span className="block text-sm leading-relaxed text-muted-foreground group-hover:text-foreground">
+                      <span className="line-clamp-3 block text-sm leading-relaxed text-muted-foreground group-hover:text-foreground">
                         {suggestion.description}
                       </span>
                     </button>
@@ -727,19 +727,39 @@ export function StudioPage() {
                       </code>
                     </div>
                   ) : isRunning ? (
-                    <div className="flex items-center gap-3">
-                      <Progress
-                        value={job?.progress ?? 0}
-                        className="flex-1"
-                        aria-label="Render progress"
-                      />
+                    <div className="flex items-start gap-3">
+                      <div className="min-w-0 flex-1 space-y-2 pt-2.5">
+                        {(job?.progress ?? 0) > 0 ? (
+                          <Progress
+                            value={job?.progress ?? 0}
+                            aria-label="Render progress"
+                          />
+                        ) : (
+                          <div
+                            role="progressbar"
+                            aria-label="Render progress"
+                            className="relative h-1 overflow-hidden rounded-full bg-muted"
+                          >
+                            <div className="progress-indeterminate absolute inset-y-0 w-1/3 rounded-full bg-primary" />
+                          </div>
+                        )}
+                        <p className="text-xs tabular-nums text-muted-foreground">
+                          {[
+                            (job?.progress ?? 0) > 0 ? `${Math.round(job?.progress ?? 0)}%` : null,
+                            job?.eta && (job?.progress ?? 0) > 0 ? `${job.eta} left` : null,
+                            (job?.chunks_ready ?? 0) > 0 ? "Playing as it renders" : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "First sentence is on its way"}
+                        </p>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => void cancel()}
                         disabled={!job}
                       >
-                        <Square />
+                        <Square className="fill-current" />
                         Cancel
                       </Button>
                     </div>
@@ -799,7 +819,7 @@ export function StudioPage() {
                       void synthesize();
                     }
                   }}
-                  placeholder="Describe the voice you want to create..."
+                  placeholder="Type or paste the script to speak…"
                   aria-label="Voice prompt"
                   rows={3}
                   className="min-h-[76px] resize-y rounded-xl border-border/70 bg-surface-inset/60 px-3 py-2.5 text-sm leading-relaxed focus-visible:bg-card"
