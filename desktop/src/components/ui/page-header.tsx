@@ -44,7 +44,7 @@ export function PageHeader({
         ) : null}
         <div className="flex items-center gap-2.5">
           {Icon ? (
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-accent text-primary">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-accent text-primary">
               <Icon className="size-4" />
             </span>
           ) : null}

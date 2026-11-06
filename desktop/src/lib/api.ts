@@ -111,12 +111,22 @@ async function createVoice(payload: {
   language: string;
   notes?: string;
   reference_path?: string;
-  consent_confirmed?: boolean;
+  consent_confirmed: boolean;
 }): Promise<VoiceProfile> {
   return request<VoiceProfile>("/api/voices", {
     method: "POST",
-    body: JSON.stringify({ consent_confirmed: true, ...payload }),
+    body: JSON.stringify(payload),
   });
+}
+
+/** Uploads a recording made in the app; returns the path create_voice expects. */
+async function uploadReference(wav: Blob): Promise<string> {
+  const { reference_path } = await request<{ reference_path: string }>("/api/voices/reference", {
+    method: "POST",
+    headers: { "Content-Type": "audio/wav" },
+    body: wav,
+  });
+  return reference_path;
 }
 
 async function deleteVoice(id: number): Promise<{ ok: boolean }> {
@@ -258,6 +268,7 @@ export const api = {
   getHealthDetails,
   listVoices,
   createVoice,
+  uploadReference,
   deleteVoice,
   listEngines,
   listHistory,

@@ -81,7 +81,7 @@ export function VoicePicker({
             const quality = voice.clips[0]?.quality_score ?? 0;
             return (
               <ComboboxItem key={voice.id} value={voice} className="gap-2.5 py-2">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface-accent text-primary">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-surface-accent text-primary">
                   <Mic2 className="size-3.5" />
                 </span>
                 <span className="flex min-w-0 flex-col">

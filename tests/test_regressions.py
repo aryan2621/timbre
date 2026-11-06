@@ -10,10 +10,10 @@ from pathlib import Path
 import numpy as np
 
 from app.audio.chunker import TextChunker
+from app.audio.stitch import stitch_chunks
 from app.data.database import DatabaseManager
 from app.data.models import VoiceClip, VoiceProfile
 from app.data.voice_repo import VoiceRepository
-from app.audio.stitch import stitch_chunks
 
 
 class TestChunkerRegression(unittest.TestCase):

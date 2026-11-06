@@ -13,8 +13,8 @@ import numpy as np
 from fastapi.testclient import TestClient
 
 from app.api import server as server_mod
-from app.services import synthesis_service
 from app.engines.base import EngineLicense, SynthesisParameters, TTSEngine
+from app.services import synthesis_service
 
 
 class _FakeEngine(TTSEngine):

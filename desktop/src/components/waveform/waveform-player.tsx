@@ -213,7 +213,7 @@ export const WaveformPlayer = forwardRef<
     <div
       ref={containerRef}
       className={cn(
-        "w-full overflow-hidden rounded-xl border border-border bg-surface-inset",
+        "w-full overflow-hidden rounded-md border border-border bg-surface-inset",
         className,
       )}
       style={{ ["--waveform-height" as string]: `${height}px` } as CSSProperties}

@@ -69,8 +69,6 @@ class TestEngineRegistry(unittest.TestCase):
         reg = EngineRegistry()
         names = reg.list_engine_names()
         self.assertIn("Chatterbox TTS", names)
-        self.assertIn("XTTS v2 (Coqui)", names)
-        self.assertIn("F5-TTS", names)
 
     def test_custom_engine_registration_and_lifecycle(self):
         reg = EngineRegistry()

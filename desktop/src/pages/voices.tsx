@@ -3,11 +3,13 @@ import {
   CheckCircle2,
   CircleAlert,
   FileAudio,
+  Mic,
   Mic2,
   Pause,
   Play,
   Plus,
   Search,
+  Square,
   ShieldCheck,
   Trash2,
 } from "lucide-react";
@@ -34,6 +36,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Meter } from "@/components/ui/meter";
@@ -45,6 +48,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { api } from "@/lib/api";
 import { useApp, useAppActions } from "@/lib/app-context";
 import { pickAudioFile } from "@/lib/desktop";
+import { MAX_RECORD_SECONDS, useRecorder } from "@/hooks/use-recorder";
 import { useEngineStatus } from "@/lib/engine-status";
 import { formatDuration } from "@/lib/format";
 import { mockEngines, mockVoices, demoList } from "@/lib/mock";
@@ -148,6 +152,24 @@ export function VoicesPage() {
     }
   };
 
+  const recorder = useRecorder(async (wav, duration) => {
+    try {
+      const path = await api.uploadReference(wav);
+      setForm(p => ({ ...p, referencePath: path }));
+      toast.success(`Recorded ${duration.toFixed(0)}s`, duration < 5 ? { description: "Under 5 seconds may clone poorly. Try a longer take." } : undefined);
+    } catch (e) {
+      toast.error("Could not save the recording", { description: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  const toggleRecording = async () => {
+    if (recorder.recording) { recorder.stop(); return; }
+    if (!online) { toast.error("Recording needs the Python engine running"); return; }
+    try { await recorder.start(); } catch (e) {
+      toast.error("Microphone unavailable", { description: e instanceof Error ? e.message : "Allow microphone access and try again." });
+    }
+  };
+
   const chooseReference = async () => {
     const path = await pickAudioFile();
     if (!path) return;
@@ -161,7 +183,7 @@ export function VoicesPage() {
     if (!online) { toast.error("Creating a profile needs the Python engine running"); return; }
     setBusy(true);
     try {
-      const created = await api.createVoice({ name: form.name.trim(), language: form.language, notes: form.notes.trim(), reference_path: form.referencePath.trim() });
+      const created = await api.createVoice({ name: form.name.trim(), language: form.language, notes: form.notes.trim(), reference_path: form.referencePath.trim(), consent_confirmed: consent });
       setVoices(p => [...p, created]);
       setDialogOpen(false);
       setForm(EMPTY_FORM);
@@ -195,7 +217,7 @@ export function VoicesPage() {
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name, language or notes…" className="pl-9 h-10 w-full" />
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 w-full sm:w-auto rounded-lg border bg-surface-raised p-1">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 w-full sm:w-auto rounded-md border bg-surface-raised p-1">
           {[
             { id: "all", label: "All" },
             { id: "confirmed", label: "Consented" },
@@ -210,10 +232,10 @@ export function VoicesPage() {
 
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-2xl" />)}
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-md" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <Empty className="border border-dashed rounded-2xl bg-surface-inset/60 py-16">
+        <Empty className="border border-dashed rounded-md bg-surface-inset/60 py-16">
           <EmptyHeader>
             <EmptyMedia variant="icon"><Mic2 /></EmptyMedia>
             <EmptyTitle>{voices.length === 0 ? "No voice profiles yet" : "No voices match"}</EmptyTitle>
@@ -229,10 +251,10 @@ export function VoicesPage() {
             const quality = voice.clips[0]?.quality_score ?? 0;
             const totalSeconds = voice.clips.reduce((s, c) => s + c.duration_seconds, 0);
             return (
-              <Card key={voice.id} className="group relative overflow-hidden rounded-2xl shadow-[var(--shadow-soft)] transition hover:shadow-[var(--shadow-lifted)]">
+              <Card key={voice.id} className="group relative overflow-hidden shadow-[var(--shadow-soft)] transition hover:shadow-[var(--shadow-lifted)]">
                 <CardHeader className="pb-3">
                   <div className="flex items-start gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-accent text-primary">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-accent text-primary">
                       <Mic2 className="size-5" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -280,7 +302,7 @@ export function VoicesPage() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={open => { setDialogOpen(open); if (!open) { setForm(EMPTY_FORM); setConsent(false); } }}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl">New voice profile</DialogTitle>
@@ -300,9 +322,9 @@ export function VoicesPage() {
             </Field>
             <Field>
               <FieldLabel>Reference recording</FieldLabel>
-              <button type="button" onClick={chooseReference} className="flex w-full items-center justify-between rounded-xl border border-dashed p-4 hover:border-primary/50 transition">
+              <button type="button" onClick={chooseReference} className="flex w-full items-center justify-between rounded-md border border-dashed p-4 hover:border-primary/50 transition">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-surface-raised text-primary"><FileAudio className="size-4" /></div>
+                  <div className="flex size-9 items-center justify-center rounded-md bg-surface-raised text-primary"><FileAudio className="size-4" /></div>
                   <div className="text-left">
                     <div className="text-sm font-medium">{form.referencePath ? form.referencePath.split("/").pop() : "Choose file"}</div>
                     <div className="text-xs text-muted-foreground">WAV, FLAC, OGG, MP3 · 5–30s</div>
@@ -310,11 +332,18 @@ export function VoicesPage() {
                 </div>
                 <Plus className="size-4 text-muted-foreground" />
               </button>
+              <Button type="button" variant={recorder.recording ? "default" : "outline"} onClick={toggleRecording} className="mt-2 w-full">
+                {recorder.recording ? <><Square className="fill-current" />Stop · {recorder.seconds.toFixed(0)}s / {MAX_RECORD_SECONDS}s</> : <><Mic />Record with microphone</>}
+              </Button>
             </Field>
             <Field>
               <FieldLabel>Notes</FieldLabel>
               <Textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Warm tone, treated room…" className="min-h-20" />
             </Field>
+            <label className="flex items-start gap-2.5 text-sm">
+              <Checkbox checked={consent} onCheckedChange={checked => setConsent(checked === true)} className="mt-0.5" />
+              <span>I own this voice or have the speaker's permission to clone it.</span>
+            </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>

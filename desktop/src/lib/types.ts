@@ -42,7 +42,10 @@ export interface EngineInfo {
   supported_languages: string[];
   native_sample_rate: number;
   requires_gpu_recommended: boolean;
+  /** Installed and supported by this machine's hardware. */
   is_available: boolean;
+  /** Why the engine can't be used here, or null when it can. */
+  unavailable_reason: string | null;
   is_loaded: boolean;
   default_params: SynthesisParams;
 }
@@ -91,6 +94,8 @@ export interface ModelInfo {
   license_notice: string;
   total_bytes: number;
   is_downloaded: boolean;
+  /** Why the matching engine can't run on this machine, or null. */
+  unavailable_reason?: string | null;
   download_job?: DownloadJob | null;
 }
 

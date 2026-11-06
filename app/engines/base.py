@@ -51,6 +51,15 @@ class TTSEngine(ABC):
     # engine never blocks a render on another.
     lock = threading.RLock()
 
+    # Catalog id of this engine's downloadable weights (app/data/model_catalog.py), if any.
+    model_id: str | None = None
+
+    def unavailable_reason(self) -> str | None:
+        """None when the engine can run here, otherwise a short reason why not."""
+        if not self.is_available():
+            return "Its Python package is not installed in the API environment"
+        return None
+
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.lock = threading.RLock()

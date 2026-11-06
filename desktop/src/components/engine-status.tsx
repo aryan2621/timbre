@@ -77,7 +77,7 @@ export function EngineStatusBlock({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-surface-raised p-3 shadow-[0_1px_2px_rgb(31_30_29/0.04)]",
+        "rounded-md border border-border bg-surface-raised p-3 shadow-[0_1px_2px_rgb(31_30_29/0.04)]",
         className,
       )}
     >

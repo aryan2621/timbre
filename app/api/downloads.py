@@ -141,6 +141,7 @@ class DownloadManager:
 
                 job.message = f"Downloading {file.name} ({index + 1}/{len(model.files)})"
                 destination = destination_dir / file.name
+                destination.parent.mkdir(parents=True, exist_ok=True)  # some files live in subfolders
                 if destination.exists():
                     done_bytes += file.size
                     job.downloaded_bytes = done_bytes

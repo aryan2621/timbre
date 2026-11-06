@@ -35,7 +35,7 @@ export function AppHeader() {
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
-          className="hidden h-8 items-center gap-2 rounded-lg border border-border bg-surface-raised px-2.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground lg:flex"
+          className="hidden h-8 items-center gap-2 rounded-md border border-border bg-surface-raised px-2.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground lg:flex"
         >
           <Search className="size-3.5" />
           <span>Search</span>

@@ -11,14 +11,13 @@ Runs entirely on your local machine: a Tauri + React desktop app talking to a lo
 - **Zero-Shot Voice Cloning:** Clone any voice using 5 to 30 seconds of clean reference audio.
 - **Sentence-Aware Rendering:** Scripts are split into sentence-aware chunks and rendered with crossfades and natural pauses, so the result is one continuous waveform instead of a robotic concatenation. The render runs in a background job and the UI reports progress, ETA and the waveform while it runs.
 - **Offline & Private:** All inference runs on your local CPU or GPU. No network access required once models are cached.
-- **Pluggable Engine Architecture:**
-  - **Chatterbox TTS (Default):** Permissive MIT license, lightweight, real-time factor < 0.8x, embedded Perth acoustic watermark. Multilingual (23 languages including Hindi) via Chatterbox MultilingualTTS — auto-selected for non-English synthesis.
-  - **Coqui XTTS v2:** High fidelity 17-language cloner (CPML Non-Commercial license).
-  - **F5-TTS:** Diffusion Transformer with Flow Matching and sway sampling.
+- **Pluggable Engine Architecture:** Chatterbox is the one engine shipped, chosen as the best local, commercial-friendly option. Other engines can be added behind the `TTSEngine` interface.
+  - **Chatterbox TTS (Default):** Permissive MIT license, embedded Perth acoustic watermark. Multilingual (23 languages including Hindi) via Chatterbox MultilingualTTS — auto-selected for non-English synthesis.
 - **Reference Voice Prep & Quality Diagnostics:** Automated mono conversion, resampling, spectral noise reduction, VAD silence trimming, -23 LUFS loudness normalization, and SNR/clipping health checks.
-- **Interactive Audio Studio:** Real-time waveform scrubbing, speech rate controls, CFG weight, emotion exaggeration, and multi-format export (WAV, MP3, FLAC, OGG).
+- **Interactive Audio Studio:** Playback starts while the render is still running, waveform scrubbing, speech rate, CFG weight and emotion controls, and WAV export.
 - **Batch Processing:** Synthesize hundreds of dialogue lines from `.txt`, `.csv`, or `.srt` subtitle files with queue controls and retry logic.
-- **Ethics & Consent Guardrails:** Enforced consent timestamping on profile creation and Perth audio watermarking.
+- **Record or Import a Reference:** Record from the microphone inside the New voice dialog (up to 30 s) or import a WAV, FLAC, OGG or MP3 file.
+- **Ethics & Consent Guardrails:** A consent confirmation is required, and enforced by the API, before a voice profile is created; Perth audio watermarking.
 
 ---
 
@@ -29,7 +28,7 @@ Runs entirely on your local machine: a Tauri + React desktop app talking to a lo
 | **OS** | Windows 10/11, macOS 12+, Linux (Ubuntu 22.04+) | Windows 10/11, macOS 13+, Ubuntu 22.04+ | Windows 11, macOS 14+, Linux |
 | **Processor** | 4-Core Intel/AMD x86_64 or Apple M1 | 8-Core Intel/AMD Ryzen or Apple M2/M3 | 12+ Core Modern CPU |
 | **GPU** | None (CPU Fallback) | NVIDIA RTX 3060+ (CUDA 12) or Apple Silicon (MPS) | NVIDIA RTX 4070/4080/4090 or Apple M3 Max |
-| **VRAM** | N/A | **6 GB VRAM** (Chatterbox / F5-TTS) | **12+ GB VRAM** (XTTS v2 / Large Diffusion) |
+| **VRAM** | N/A | **6 GB VRAM** (Chatterbox) | **12+ GB VRAM** |
 | **System RAM** | 8 GB | 16 GB | 32 GB |
 | **Disk Storage** | 2 GB free (Application + Default Model) | 10 GB free SSD | 25 GB free NVMe SSD |
 
@@ -134,17 +133,15 @@ lists. Only a plain browser session (`pnpm dev`) falls back to demo data.
 | `app/api/server.py` | FastAPI transport: voices, history, jobs, settings, models |
 | `app/data/model_catalog.py` | Shared model metadata (downloads, sizes, SHA-256) |
 
-Both frontends share the same SQLite database and voice profiles, so profiles
-created in one appear in the other.
-
 ### Rendering architecture
 
 | Layer | Path | Role |
 | --- | --- | --- |
 | Text chunking | `app/audio/chunker.py` | Splits the script into sentence-aware chunks |
-| Rendering | `app/workers/synth_worker.py` | Renders each chunk and stitches them with crossfades |
+| Rendering | `app/services/synthesis_service.py` | Renders each chunk, post-processes on a second thread, stitches with crossfades |
+| Stitching | `app/audio/stitch.py` | `prepare_chunk` and `stitch_chunks` |
 | Desktop transport | `app/api/server.py` | `POST /api/synthesize` starts a job, `GET /api/jobs/{id}` reports its progress |
-| Desktop playback | `desktop/src/pages/studio.tsx` | Loads the finished render into the `<audio>` element |
+| Desktop playback | `desktop/src/hooks/use-studio.ts` | Plays finished chunks while rendering (`/api/jobs/{id}/chunks/{n}`), then the final file |
 
 A render runs in a background thread on the backend, so the API stays
 responsive. The desktop client polls the job status once per second, which
@@ -153,7 +150,7 @@ running. When the job is done the rendered file is served from
 `/api/history/{id}/audio` and the UI plays it with the regular media element.
 
 Chunks are prepared with the same sentence pause and edge fades used by the
-final stitch (`SynthesisWorker._prepare_chunk`), so the rendered file is one
+final stitch (`app.audio.stitch.prepare_chunk`), so the rendered file is one
 continuous waveform. Every render is persisted to History, so it can be
 replayed or exported later.
 
@@ -166,18 +163,19 @@ with Chatterbox, for the same script:
 
 | Characters per chunk | Chunks | Total render | Audio | Real-time factor |
 | --- | --- | --- | --- | --- |
-| 220 (old default) | 2 | 62.3 s | 12.4 s | 5.04x |
-| **110 (new default)** | **5** | **31.9 s** | **14.5 s** | **2.20x** |
+| 220 | 2 | 62.3 s | 12.4 s | 5.04x |
+| **110** | **5** | **31.9 s** | **14.5 s** | **2.20x** |
 | 55 | 11 | 67.2 s | 27.7 s | 2.42x |
 
-The default is therefore **110 characters**, which is roughly twice as fast as
-the previous 220 and cuts the delay before the first sentence is audible.
-Tune it in **Settings → Audio I/O → Chunk size** (or `max_chars_per_chunk` in
-`config.json`).
+That benchmark favoured small chunks. The default is now **200 characters**,
+because play-while-rendering hides the wait for the first sentence and larger
+chunks sound more natural. Tune it in **Settings → Audio & quality → Maximum
+characters per chunk** (or `max_chars_per_chunk` in `config.json`).
 
-The **Speed Multiplier** is applied per engine: XTTS and F5-TTS take it
-natively, Chatterbox has no native speed control, so its render is stretched
-with a phase vocoder (librosa) after synthesis, which keeps the pitch intact.
+The **Speed Multiplier**: Chatterbox has no native speed control, so at a
+speed other than 1.0 its chunks are time-stretched with a phase vocoder
+(librosa) on a second thread while the next chunk renders, which keeps the
+pitch intact. The default speed is 1.0, which skips it.
 
 ### Production build
 ```bash
@@ -192,23 +190,21 @@ large and may need extra `--hidden-import` flags for your engines).
 
 ## First-Use Walkthrough
 
-1. **Accept Ethics Agreement:** Upon initial startup, read and accept the Ethical Acceptable Use policy confirming you have permission to clone your reference voices.
-2. **Create a Voice Profile:**
+1. **Create a Voice Profile:**
    - Navigate to the **Voices** tab on the left sidebar.
-   - Click **+ Create New Voice Profile**.
+   - Click **New voice** (or press the shortcut shown in the command palette).
    - Enter a name (e.g., "Elena Storyteller").
-   - **Option A:** Click *Browse* to import an existing clean WAV/MP3 recording (5–20s).
-   - **Option B:** Click *Start Recording* and read the suggested phonetic script aloud.
-   - Review the **Quality Analysis** card (checks for clipping, background hiss, SNR).
-   - Check the **Consent Confirmation** checkbox and click **Save Profile**.
-3. **Generate Speech in Studio:**
+   - **Option A:** Click *Choose file* to import a clean recording (5–30 s).
+   - **Option B:** Click *Record with microphone*, speak, then *Stop*. Allow microphone access when macOS asks.
+   - Tick the consent checkbox and click **Create profile**. The quality score appears on the voice card.
+2. **Generate Speech in Studio:**
    - Switch to the **Studio** tab.
    - Select your newly created voice from the top dropdown.
    - Enter your text in the speech editor.
    - Adjust the **Emotion / Exaggeration** or **Speaking Rate** sliders if desired.
    - Click **Synthesize Speech (Ctrl+Enter)**.
    - View generation progress, ETA, and preview the resulting audio on the interactive waveform scrubber.
-   - Click **Export Audio (Ctrl+S)** to save as WAV, MP3, FLAC, or OGG.
+   - Export the render as WAV from the Studio or History page.
 
 ---
 
@@ -216,11 +212,11 @@ large and may need extra `--hidden-import` flags for your engines).
 
 Run the test suite with `pytest`:
 ```bash
-pytest voiceclone/tests -v
+pytest tests -v
 ```
 Or run using standard Python `unittest`:
 ```bash
-python -m unittest discover -s voiceclone/tests -p "test_*.py" -v
+python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 ---

@@ -23,12 +23,8 @@ class EngineRegistry:
     def _register_default_engines(self) -> None:
         """Instantiates and registers standard engines."""
         from app.engines.chatterbox_engine import ChatterboxEngine
-        from app.engines.f5_engine import F5Engine
-        from app.engines.xtts_engine import XTTSEngine
 
         self.register(ChatterboxEngine())
-        self.register(XTTSEngine())
-        self.register(F5Engine())
 
     def register(self, engine: TTSEngine) -> None:
         """Registers a new TTS engine instance."""

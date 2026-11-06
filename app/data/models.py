@@ -100,7 +100,7 @@ class ModelFile:
 class ModelMetadata:
     """Information regarding a supported or downloaded TTS engine neural model."""
 
-    id: str  # e.g. "chatterbox-tts", "xtts-v2", "f5-tts"
+    id: str  # e.g. "chatterbox-tts"
     name: str
     version: str
     license_name: str

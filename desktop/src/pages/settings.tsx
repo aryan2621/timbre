@@ -189,7 +189,7 @@ export function SettingsPage() {
                   key={section.id}
                   type="button"
                   onClick={() => setActiveSection(section.id)}
-                  className={`relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors ${
+                  className={`relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors ${
                     active
                       ? "bg-surface-raised font-medium text-foreground shadow-[0_1px_2px_rgb(31_30_29/0.05)]"
                       : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground"
@@ -216,7 +216,7 @@ export function SettingsPage() {
             <button
               type="button"
               onClick={() => setActiveSection("shortcuts")}
-              className={`relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors ${
+              className={`relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors ${
                 activeSection === "shortcuts"
                   ? "bg-surface-raised font-medium text-foreground shadow-[0_1px_2px_rgb(31_30_29/0.05)]"
                   : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground"
@@ -259,7 +259,7 @@ export function SettingsPage() {
                       (shortcut) => (
                         <div
                           key={shortcut.id}
-                          className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-[13px] transition-colors hover:bg-muted/60"
+                          className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[13px] transition-colors hover:bg-muted/60"
                         >
                           <span className="text-muted-foreground">
                             {shortcut.label}

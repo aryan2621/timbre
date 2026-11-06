@@ -13,9 +13,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from app.api.downloads import DownloadJob, DownloadManager
+from fastapi.testclient import TestClient
+
 import app.data.database as db_mod
 import app.data.history_repo  # noqa: F401
+from app.api import server as server_mod
+from app.api.downloads import DownloadJob, DownloadManager
 from app.data.models import HistoryEntry, ModelFile, ModelMetadata
 from tests.test_api_batch import _BatchApiTestCase
 
@@ -249,3 +252,25 @@ class TestLiveChunksAndPostprocess(_BatchApiTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReferenceUpload(unittest.TestCase):
+    def test_recording_is_saved_and_empty_body_rejected(self):
+        client = TestClient(server_mod.app)
+        ok = client.post("/api/voices/reference", content=b"RIFFdata")
+        self.assertEqual(ok.status_code, 200)
+        path = Path(ok.json()["reference_path"])
+        self.assertTrue(path.is_file())
+        path.unlink()
+        self.assertEqual(client.post("/api/voices/reference", content=b"").status_code, 400)
+
+
+class TestModelCatalogEngines(unittest.TestCase):
+    def test_every_engine_weight_is_in_the_catalog_and_listed(self):
+        from app.data.model_catalog import get_model
+        from app.engines.registry import engine_registry
+
+        for engine in engine_registry.get_all_engines():
+            self.assertIsNotNone(get_model(engine.model_id), engine.name)
+        models = {m["id"]: m for m in TestClient(server_mod.app).get("/api/models").json()}
+        self.assertIn("unavailable_reason", models["chatterbox-tts"])

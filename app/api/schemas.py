@@ -14,6 +14,7 @@ from app.api.downloads import download_manager
 from app.data.model_catalog import is_model_present, model_local_path
 from app.data.models import HistoryEntry, ModelMetadata, VoiceClip, VoiceProfile
 from app.engines.base import TTSEngine
+from app.engines.registry import engine_registry
 
 AUDIO_EXTENSIONS = {".wav", ".flac", ".ogg", ".mp3", ".m4a", ".aac", ".aiff", ".aif"}
 MAX_PEAKS = 240
@@ -118,6 +119,7 @@ def history_to_dict(entry: HistoryEntry) -> dict[str, Any]:
 
 def engine_to_dict(engine: TTSEngine) -> dict[str, Any]:
     license_info = engine.license_info
+    reason = engine.unavailable_reason()
     return {
         "name": engine.name,
         "license_name": license_info.name,
@@ -127,7 +129,8 @@ def engine_to_dict(engine: TTSEngine) -> dict[str, Any]:
         "supported_languages": list(engine.supported_languages),
         "native_sample_rate": engine.native_sample_rate,
         "requires_gpu_recommended": engine.requires_gpu_recommended,
-        "is_available": engine.is_available(),
+        "is_available": reason is None,
+        "unavailable_reason": reason,
         "is_loaded": engine.is_loaded(),
         "default_params": asdict(engine.get_default_params()),
     }
@@ -143,6 +146,10 @@ def model_to_dict(model: ModelMetadata, models_dir: Path) -> dict[str, Any]:
         "license_notice": model.license_notice,
         "total_bytes": model.total_bytes,
         "is_downloaded": is_model_present(model, models_dir),
+        "unavailable_reason": next(
+            (e.unavailable_reason() for e in engine_registry.get_all_engines() if e.model_id == model.id),
+            None,
+        ),
         "local_path": str(model_local_path(model, models_dir)),
         "download_job": (
             job.to_dict() if (job := download_manager.active_for_model(model.id)) else None

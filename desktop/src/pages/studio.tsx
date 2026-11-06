@@ -174,9 +174,9 @@ function DrawerContent({
   setVoice: (v: VoiceProfile | null) => void;
 }) {
   return (
-    <div className="flex flex-col gap-4 h-full">
-      <Card className="rounded-2xl shadow-[var(--shadow-soft)] flex-shrink-0">
-        <CardHeader className="pb-3">
+    <div className="flex flex-col gap-4 h-full px-7 pb-7">
+      <Card className="shadow-[var(--shadow-soft)] flex-shrink-0 py-6">
+        <CardHeader className="px-6 pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Mic2 className="size-4 text-primary" />
             Source
@@ -185,7 +185,7 @@ function DrawerContent({
             The speaker, the engine and the language of this render.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="px-6 flex flex-col gap-3">
           <Field>
             <FieldLabel>Reference voice</FieldLabel>
             <VoicePicker
@@ -219,7 +219,7 @@ function DrawerContent({
                   >
                     {engine.name}
                     {!engine.is_available ? (
-                      <span className="text-muted-foreground"> · not installed</span>
+                      <span className="text-muted-foreground"> · {engine.unavailable_reason}</span>
                     ) : !engine.commercial_permitted ? (
                       <span className="text-status-warning"> · non-commercial</span>
                     ) : null}
@@ -257,9 +257,9 @@ function DrawerContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl shadow-[var(--shadow-soft)] flex-1 min-h-0 flex flex-col">
+      <Card className="shadow-[var(--shadow-soft)] flex-1 min-h-0 flex flex-col py-6">
         <Tabs defaultValue="prosody" className="gap-0 flex-1 flex flex-col">
-          <CardHeader className="pb-3 flex-shrink-0">
+          <CardHeader className="px-6 pb-3 flex-shrink-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <Wand2 className="size-4 text-primary" />
               Delivery
@@ -269,7 +269,7 @@ function DrawerContent({
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4 flex-1 overflow-y-auto">
+          <CardContent className="px-6 space-y-4 flex-1 overflow-y-auto">
             <TabsList className="w-full flex-shrink-0">
               <TabsTrigger value="voice">Voice</TabsTrigger>
               <TabsTrigger value="prosody">Prosody</TabsTrigger>
@@ -277,7 +277,7 @@ function DrawerContent({
             </TabsList>
 
             <TabsContent value="voice" className="space-y-4 flex-1">
-              <div className="rounded-xl border border-border bg-surface-inset p-4">
+              <div className="rounded-md border border-border bg-surface-inset p-4">
                 <p className="text-xs font-medium text-foreground">
                   {voice?.name ?? "No voice selected"}
                 </p>
@@ -294,7 +294,7 @@ function DrawerContent({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border bg-surface-inset p-4">
+              <div className="rounded-md border border-border bg-surface-inset p-4">
                 <p className="text-xs font-medium text-foreground">
                   {activeEngine?.name ?? "No engine"}
                 </p>
@@ -317,7 +317,7 @@ function DrawerContent({
                 </div>
               </div>
 
-              <div className="flex items-start justify-between gap-3 rounded-xl border border-primary/20 bg-surface-accent p-4">
+              <div className="flex items-start justify-between gap-3 rounded-md border border-primary/20 bg-surface-accent p-4">
                 <div className="flex items-start gap-3">
                   <LockKeyhole className="mt-0.5 size-4 shrink-0 text-primary" />
                   <div>
@@ -584,7 +584,7 @@ export function StudioPage() {
       <div className={`-mx-4 -my-4 flex min-h-[calc(100dvh-3.5rem)] flex-col text-foreground md:-mx-6 md:-my-6 ${canvas}`}>
         <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/70 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-surface-accent text-primary">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-surface-accent text-primary">
               <AudioLines className="size-4" />
             </span>
             <div className="min-w-0">
@@ -602,7 +602,7 @@ export function StudioPage() {
               <span className="hidden sm:inline">{connection === "offline" ? (IS_TAURI ? "Engine offline" : "Offline demo") : "Engine ready"}</span>
             </Badge>
             <SheetTrigger
-              className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm text-foreground transition-colors hover:bg-muted"
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm text-foreground transition-colors hover:bg-muted"
               aria-label="Open voice controls"
             >
               <SlidersHorizontal className="size-3.5" />
@@ -634,7 +634,7 @@ export function StudioPage() {
             {!job && !starting ? (
               <div className="mx-auto w-full max-w-3xl py-8">
                 <div className="mb-7 text-center">
-                  <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-2xl border border-primary/15 bg-surface-accent text-primary">
+                  <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-md border border-primary/15 bg-surface-accent text-primary">
                     <Sparkles className="size-5" />
                   </div>
                   <h1 className="font-heading text-4xl tracking-tight sm:text-5xl">
@@ -653,10 +653,10 @@ export function StudioPage() {
                         setText(suggestion.description);
                         scriptRef.current?.focus();
                       }}
-                      className="group flex flex-col items-stretch justify-start rounded-2xl border border-border/80 bg-card/80 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card hover:shadow-[var(--shadow-soft)]"
+                      className="group flex flex-col items-stretch justify-start rounded-md border border-border/80 bg-card/80 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card hover:shadow-[var(--shadow-soft)]"
                     >
                       <span className="mb-3 flex items-center justify-between gap-2">
-                        <span className={`flex size-8 items-center justify-center rounded-xl ${suggestion.tint}`}>
+                        <span className={`flex size-8 items-center justify-center rounded-md ${suggestion.tint}`}>
                           <suggestion.icon className="size-4" />
                         </span>
                         <span aria-hidden="true" className="text-xs text-muted-foreground/60 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5">↗</span>
@@ -679,7 +679,7 @@ export function StudioPage() {
                 </div>
                 <div>
                   <div className="mb-3 flex items-center gap-2">
-                    <span className="flex size-7 items-center justify-center rounded-lg bg-surface-accent text-primary">
+                    <span className="flex size-7 items-center justify-center rounded-md bg-surface-accent text-primary">
                       <AudioWaveform className="size-3.5" />
                     </span>
                     <strong className="text-sm">VoiceClone</strong>
@@ -702,7 +702,7 @@ export function StudioPage() {
                   </p>
 
                   {audioUrl ? (
-                    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-inset/70 px-3 py-2.5">
+                    <div className="flex items-center gap-3 rounded-md border border-border bg-surface-inset/70 px-3 py-2.5">
                       <Button
                         size="icon"
                         className="size-9 shrink-0 rounded-full"
@@ -790,7 +790,7 @@ export function StudioPage() {
           </div>
 
           <div className="shrink-0 px-4 pb-4 sm:px-6 sm:pb-5">
-            <Card className="mx-auto w-full max-w-3xl rounded-2xl border-border/80 shadow-[var(--shadow-soft)]">
+            <Card className="mx-auto w-full max-w-3xl border-border/80 shadow-[var(--shadow-soft)]">
               <CardContent className="space-y-3 p-4 sm:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -822,7 +822,7 @@ export function StudioPage() {
                   placeholder="Type or paste the script to speak…"
                   aria-label="Voice prompt"
                   rows={3}
-                  className="min-h-[76px] resize-y rounded-xl border-border/70 bg-surface-inset/60 px-3 py-2.5 text-sm leading-relaxed focus-visible:bg-card"
+                  className="min-h-[76px] resize-y rounded-md border-border/70 bg-surface-inset/60 px-3 py-2.5 text-sm leading-relaxed focus-visible:bg-card"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
@@ -843,7 +843,7 @@ export function StudioPage() {
                       size="sm"
                       onClick={() => void synthesize()}
                       disabled={isRunning || starting || !voice || !text.trim()}
-                      className="h-9 rounded-lg px-3"
+                      className="h-9 rounded-md px-3"
                     >
                       {starting ? <Loader2 className="animate-spin" /> : <Sparkles />}
                       {starting ? "Starting…" : isRunning ? "Generating…" : "Generate voice"}
@@ -864,7 +864,7 @@ export function StudioPage() {
         {(job || starting) ? (
           <div className="fixed bottom-5 right-5 z-30">
             <SheetTrigger
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-3.5 text-sm text-foreground shadow-[var(--shadow-soft)] transition-colors hover:bg-muted"
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-3.5 text-sm text-foreground shadow-[var(--shadow-soft)] transition-colors hover:bg-muted"
               aria-label="Open voice controls"
             >
               <SlidersHorizontal className="size-3.5" />
@@ -873,7 +873,7 @@ export function StudioPage() {
           </div>
         ) : null}
 
-        <SheetContent side="right" className="w-[640px] sm:max-w-[640px] max-h-screen">
+        <SheetContent side="right" className="w-[460px] data-[side=right]:sm:max-w-[460px] max-h-screen">
           <SheetHeader>
             <SheetTitle>Voice controls</SheetTitle>
           </SheetHeader>

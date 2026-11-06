@@ -12,12 +12,15 @@ export function Meter({
   label,
   className,
   tone,
+  showValue = true,
 }: {
   value: number;
   max?: number;
   label?: string;
   className?: string;
   tone?: "auto" | "success" | "warning" | "danger";
+  /** Print the raw value beside the bar; turn off when the caller shows its own label. */
+  showValue?: boolean;
 }) {
   const ratio = Math.max(0, Math.min(1, max ? value / max : 0));
   const percent = Math.round(ratio * 100);
@@ -52,12 +55,14 @@ export function Meter({
           style={{ width: `${percent}%` }}
         />
       </div>
-      <span
-        data-numeric
-        className="shrink-0 font-mono text-xs text-muted-foreground"
-      >
-        {Math.round(value)}
-      </span>
+      {showValue ? (
+        <span
+          data-numeric
+          className="shrink-0 font-mono text-xs text-muted-foreground"
+        >
+          {Math.round(value)}
+        </span>
+      ) : null}
     </div>
   );
 }

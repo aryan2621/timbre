@@ -2,10 +2,11 @@
 Voice HTTP routes.
 """
 
+import tempfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from app.api.schemas import AUDIO_EXTENSIONS, VoiceCreateRequest, profile_to_dict
@@ -29,6 +30,22 @@ def get_voice(voice_id: int) -> dict[str, Any]:
     if profile is None:
         raise HTTPException(status_code=404, detail="Voice profile not found")
     return profile_to_dict(profile)
+
+
+MAX_RECORDING_BYTES = 50 * 1024 * 1024
+
+
+@router.post("/api/voices/reference")
+async def upload_reference(request: Request) -> dict[str, str]:
+    """Saves a recording made in the app (raw WAV body) so create_voice can use its path."""
+    body = await request.body()
+    if not body or len(body) > MAX_RECORDING_BYTES:
+        raise HTTPException(status_code=400, detail="The recording is empty or too large")
+    with tempfile.NamedTemporaryFile(
+        prefix="voiceclone_recording_", suffix=".wav", delete=False
+    ) as handle:
+        handle.write(body)
+    return {"reference_path": handle.name}
 
 
 @router.post("/api/voices")

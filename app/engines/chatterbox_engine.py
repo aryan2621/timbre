@@ -62,6 +62,8 @@ class ChatterboxEngine(TTSEngine):
     Fully open-source MIT licensed speech generator with acoustic feature matching.
     """
 
+    model_id = "chatterbox-tts"
+
     def __init__(self) -> None:
         self._is_loaded = False
         self._model = None

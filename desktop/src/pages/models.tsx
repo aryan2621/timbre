@@ -228,7 +228,7 @@ export function ModelsPage() {
       />
 
       {models.length ? (
-        <div className="rounded-xl border border-border bg-surface-accent px-4 py-3 text-sm">
+        <div className="rounded-md border border-border bg-surface-accent px-4 py-3 text-sm">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <Scale className="size-4 shrink-0 text-primary" />
             <p className="min-w-0 flex-1 text-foreground">
@@ -248,15 +248,17 @@ export function ModelsPage() {
               )}
             </p>
             {totalBytes > 0 ? (
-              <div className="flex w-full items-center gap-2 sm:w-56">
+              <div className="flex w-full items-center gap-2 sm:w-64">
                 <Meter
                   value={installedBytes}
                   max={totalBytes}
                   label="Installed model weight"
+                  showValue={false}
+                  tone="success"
                   className="flex-1"
                 />
                 <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                  {Math.round((installedBytes / totalBytes) * 100)}%
+                  {formatBytes(installedBytes)} / {formatBytes(totalBytes)}
                 </span>
               </div>
             ) : null}
@@ -267,7 +269,7 @@ export function ModelsPage() {
       {loading ? (
         <div className="grid gap-3 md:grid-cols-2">
           {[0, 1, 2, 3].map((index) => (
-            <Skeleton key={index} className="h-48 rounded-xl" />
+            <Skeleton key={index} className="h-48 rounded-md" />
           ))}
         </div>
       ) : models.length === 0 ? (
@@ -301,10 +303,72 @@ export function ModelsPage() {
                   delay: Math.min(index * 0.03, 0.24),
                 }}
               >
-                <Card className="h-full shadow-[var(--shadow-soft)]">
+                <Card className="relative h-full shadow-[var(--shadow-soft)]">
+                  <div className="absolute right-3 top-3 flex items-center gap-1">
+                    {active ? (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="Cancel download"
+                              onClick={() => job && void cancelDownload(job)}
+                            />
+                          }
+                        >
+                          <Square />
+                        </TooltipTrigger>
+                        <TooltipContent>Cancel download</TooltipContent>
+                      </Tooltip>
+                    ) : model.is_downloaded ? (
+                      <>
+                        <span
+                          className="flex size-7 items-center justify-center text-status-success"
+                          title="Installed and ready"
+                          role="img"
+                          aria-label="Installed and ready"
+                        >
+                          <Check className="size-4" />
+                        </span>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Remove downloaded weights"
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => setPendingDelete(model)}
+                              />
+                            }
+                          >
+                            <Trash2 />
+                          </TooltipTrigger>
+                          <TooltipContent>Delete the downloaded weights</TooltipContent>
+                        </Tooltip>
+                      </>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="Download model"
+                              onClick={() => void startDownload(model)}
+                            />
+                          }
+                        >
+                          <Download />
+                        </TooltipTrigger>
+                        <TooltipContent>Download model</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                   <CardContent className="flex h-full flex-col gap-2">
-                    <div className="flex items-start gap-3">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-accent text-primary">
+                    <div className="flex items-start gap-3 pr-16">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-surface-accent text-primary">
                         <Boxes className="size-4" />
                       </span>
                       <div className="min-w-0 flex-1">
@@ -326,6 +390,12 @@ export function ModelsPage() {
                         <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
                           {model.license_notice}
                         </p>
+                        {model.unavailable_reason ? (
+                          <p className="mt-1 flex items-start gap-1.5 text-[11.5px] text-status-warning">
+                            <TriangleAlert className="mt-0.5 size-3 shrink-0" />
+                            Can't be used on this machine yet: {model.unavailable_reason}
+                          </p>
+                        ) : null}
                         <p className="mt-1 font-mono text-[11px] text-muted-foreground">
                           v{model.version} · {formatBytes(model.total_bytes)} ·{" "}
                           {model.license_name}
@@ -334,7 +404,7 @@ export function ModelsPage() {
                     </div>
 
                     {active ? (
-                      <div className="space-y-2 rounded-xl border border-border bg-surface-inset/60 p-3">
+                      <div className="space-y-2 rounded-md border border-border bg-surface-inset/60 p-3">
                         <div className="flex items-center gap-2">
                           <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
                           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
@@ -357,56 +427,9 @@ export function ModelsPage() {
                             {formatBytes(job?.total_bytes ?? model.total_bytes)} ·{" "}
                             {(job?.speed_mb_s ?? 0).toFixed(2)} MB/s
                           </span>
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => job && void cancelDownload(job)}
-                          >
-                            <Square />
-                            Cancel
-                          </Button>
                         </div>
                       </div>
-                    ) : model.is_downloaded ? (
-                      <div className="mt-auto flex items-center gap-2 pt-1">
-                        <Badge
-                          variant="outline"
-                          className="flex-1 justify-center gap-1 border-status-success/30 py-1 text-status-success"
-                        >
-                          <Check className="size-3" />
-                          Installed and ready
-                        </Badge>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                onClick={() => setPendingDelete(model)}
-                              />
-                            }
-                          >
-                            <Trash2 />
-                            Remove
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            Delete the downloaded weights
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    ) : (
-                      <div className="mt-auto flex items-center gap-2 pt-1">
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => void startDownload(model)}
-                        >
-                          <Download />
-                          Download model
-                        </Button>
-                      </div>
-                    )}
+                    ) : null}
 
                     {failed ? (
                       <p className="flex items-start gap-1.5 text-[11px] text-destructive">

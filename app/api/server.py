@@ -35,6 +35,7 @@ from app.core.paths import paths  # noqa: E402,F401
 from app.data.history_repo import history_repo  # noqa: E402,F401
 from app.data.voice_repo import voice_repo  # noqa: E402,F401
 
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     setup_logging(config_manager.config.log_level)

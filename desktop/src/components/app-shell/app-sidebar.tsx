@@ -66,7 +66,7 @@ export function AppSidebar({ page, onNavigate, onOpenPalette }: AppSidebarProps)
     <Sidebar collapsible="icon" className="border-r border-border/70">
       <SidebarHeader>
         <div className="flex items-center gap-2.5 px-1 py-2">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(31_30_29/0.18)]">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(31_30_29/0.18)]">
             <AudioLines className="size-4" />
           </div>
           <div className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
@@ -82,7 +82,7 @@ export function AppSidebar({ page, onNavigate, onOpenPalette }: AppSidebarProps)
         <button
           type="button"
           onClick={onOpenPalette}
-          className="group mx-1 mb-1 hidden h-8 items-center gap-2 rounded-lg border border-border bg-surface-raised px-2 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground group-data-[collapsible=icon]:hidden md:flex"
+          className="group mx-1 mb-1 hidden h-8 items-center gap-2 rounded-md border border-border bg-surface-raised px-2 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground group-data-[collapsible=icon]:hidden md:flex"
         >
           <Search className="size-3.5" />
           <span className="flex-1 text-left">Search…</span>

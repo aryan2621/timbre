@@ -372,7 +372,7 @@ export function HistoryPage() {
         </div>
 
         {selectedRows.length ? (
-          <div className="flex items-center gap-2 rounded-lg border border-primary/25 bg-surface-accent px-2.5 py-1.5 text-xs">
+          <div className="flex items-center gap-2 rounded-md border border-primary/25 bg-surface-accent px-2.5 py-1.5 text-xs">
             <span className="font-medium text-primary">
               {selectedRows.length} selected
             </span>
@@ -395,7 +395,7 @@ export function HistoryPage() {
           {loading ? (
             <div className="space-y-2 p-4">
               {[0, 1, 2, 3, 4, 5].map((index) => (
-                <Skeleton key={index} className="h-12 rounded-lg" />
+                <Skeleton key={index} className="h-12 rounded-md" />
               ))}
             </div>
           ) : entries.length === 0 ? (

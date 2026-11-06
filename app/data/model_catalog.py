@@ -17,8 +17,6 @@ from pathlib import Path
 from app.data.models import ModelFile, ModelMetadata
 
 _CHATTERBOX = "https://huggingface.co/ResembleAI/chatterbox/resolve/main"
-_XTTS = "https://huggingface.co/coqui/XTTS-v2/resolve/main"
-_F5 = "https://huggingface.co/SWivid/F5-TTS/resolve/main/F5TTS_Base"
 
 CATALOG_MODELS: list[ModelMetadata] = [
     ModelMetadata(
@@ -50,34 +48,6 @@ CATALOG_MODELS: list[ModelMetadata] = [
                       "9b9ff07e60b20c136e2b1b3d7563a24604e8d2c4c267888d1ee929dd0151d2a3"),
             ModelFile("grapheme_mtl_merged_expanded_v1.json", f"{_CHATTERBOX}/grapheme_mtl_merged_expanded_v1.json", 69_989, ""),
             ModelFile("Cangjie5_TC.json", f"{_CHATTERBOX}/Cangjie5_TC.json", 1_920_163, ""),
-        ],
-    ),
-    ModelMetadata(
-        id="xtts-v2",
-        name="Coqui XTTS v2",
-        version="2.0.3",
-        license_name="CPML (Strictly Non-Commercial)",
-        commercial_allowed=False,
-        license_notice="Multi-lingual voice cloner. Commercial use is strictly prohibited by CPML.",
-        total_bytes=1_867_929_118,
-        local_dir="xtts_v2",
-        files=[
-            ModelFile("model.pth", f"{_XTTS}/model.pth", 1_867_929_118,
-                      "c7ea20001c6a0a841c77e252d8409f6a74fb423e79b3206a0771ba5989776187"),
-        ],
-    ),
-    ModelMetadata(
-        id="f5-tts",
-        name="F5-TTS",
-        version="1.0.0",
-        license_name="MIT License (Commercial Allowed)",
-        commercial_allowed=True,
-        license_notice="Diffusion transformer zero-shot cloner with Flow Matching.",
-        total_bytes=1_348_645_281,
-        local_dir="f5_tts",
-        files=[
-            ModelFile("model_1200000.safetensors", f"{_F5}/model_1200000.safetensors", 1_348_645_281,
-                      "4180310f91d592cee4bc14998cd37c781f779cf105e8ca8744d9bd48ca7046ae"),
         ],
     ),
 ]

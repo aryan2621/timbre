@@ -377,8 +377,7 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
     const selected = engines.find((engine) => engine.name === engineName);
     if (online && !selected?.is_available) {
       toast.error(`${engineName} isn't ready`, {
-        description:
-          "Its Python package is not installed in the engine's environment. Weights are downloaded from the Models screen, but the package comes first.",
+        description: selected?.unavailable_reason ?? "This engine can't run on this machine.",
       });
       return;
     }

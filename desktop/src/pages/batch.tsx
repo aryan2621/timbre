@@ -225,7 +225,7 @@ export function BatchPage() {
                   >
                     {engine.name}
                     {!engine.is_available ? (
-                      <span className="text-muted-foreground"> · not installed</span>
+                      <span className="text-muted-foreground"> · {engine.unavailable_reason}</span>
                     ) : null}
                   </SelectItem>
                 ))}
@@ -248,7 +248,7 @@ export function BatchPage() {
             >
               <FolderOpen className="size-4" />
               <span className="truncate">
-                {outputDir ? outputDir.split("/").pop() : "Default exports folder"}
+                {outputDir ? outputDir.split("/").pop() : "App history folder"}
               </span>
             </Button>
             <FieldDescription className="truncate text-[11.5px]" title={outputDir}>
@@ -307,7 +307,7 @@ export function BatchPage() {
           {loading ? (
             <div className="space-y-2 p-4">
               {[0, 1, 2, 3].map((index) => (
-                <Skeleton key={index} className="h-11 rounded-lg" />
+                <Skeleton key={index} className="h-11 rounded-md" />
               ))}
             </div>
           ) : lines.length === 0 ? (
@@ -395,7 +395,7 @@ export function BatchPage() {
       </Card>
 
       {job?.state === "failed" ? (
-        <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           <div>
             <p className="font-medium">The batch stopped</p>

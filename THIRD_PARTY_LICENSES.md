@@ -7,8 +7,6 @@ Review the commercial and distribution rights below before deploying or monetizi
 | :--- | :--- | :---: | :--- |
 | **VoiceClone Studio Core** | MIT License | **YES** | Permissive open-source license. |
 | **Chatterbox TTS** | MIT License | **YES** | Zero-shot cloning permitted commercially. Includes Perth acoustic watermark. |
-| **Coqui XTTS v2** | CPML (Coqui Public Model License) | ❌ **NO** | **Strictly Non-Commercial**. Requires enterprise commercial license for business use or monetized distribution. |
-| **F5-TTS** | MIT License | **YES** | Flow Matching Diffusion Transformer permitted for commercial and private use. |
 | **CosyVoice 2** | Apache License 2.0 | **YES** | Zero-shot multilingual model from Alibaba, permitted for commercial use with attribution. |
 | **PySide6 (Qt 6)** | LGPL v3 | **YES** | Permitted in commercial closed-source applications provided dynamic linking is preserved. |
 | **PyTorch** | BSD-3-Clause | **YES** | Standard scientific permissive license. |
