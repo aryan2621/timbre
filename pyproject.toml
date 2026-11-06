@@ -28,6 +28,7 @@ dependencies = [
     "platformdirs>=4.2.0",
     "fastapi>=0.115.0",
     "uvicorn>=0.34.0",
+    "chatterbox-tts==0.1.7",  # the voice engine; pins torch 2.6 itself
     "setuptools<81",  # perth (Chatterbox watermark) imports pkg_resources, removed in 81
   ]
 
