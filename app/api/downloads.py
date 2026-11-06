@@ -16,7 +16,7 @@ import urllib.request
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.core.logging_setup import get_logger
 from app.data.model_catalog import model_local_path
@@ -40,12 +40,12 @@ class DownloadJob:
     total_bytes: int = 0
     speed_mb_s: float = 0.0
     message: str = "Queued"
-    error: Optional[str] = None
-    file_path: Optional[str] = None
+    error: str | None = None
+    file_path: str | None = None
     created_at: float = field(default_factory=time.time)
     cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "model_id": self.model_id,
@@ -65,7 +65,7 @@ class DownloadManager:
     """Starts and tracks one download per model."""
 
     def __init__(self, max_jobs: int = 40) -> None:
-        self._jobs: Dict[str, DownloadJob] = {}
+        self._jobs: dict[str, DownloadJob] = {}
         self._lock = threading.Lock()
         self._max_jobs = max_jobs
 
@@ -88,18 +88,18 @@ class DownloadManager:
         thread.start()
         return job
 
-    def get(self, job_id: str) -> Optional[DownloadJob]:
+    def get(self, job_id: str) -> DownloadJob | None:
         with self._lock:
             return self._jobs.get(job_id)
 
-    def active_for_model(self, model_id: str) -> Optional[DownloadJob]:
+    def active_for_model(self, model_id: str) -> DownloadJob | None:
         with self._lock:
             for job in self._jobs.values():
                 if job.model_id == model_id and job.state in ACTIVE_STATES:
                     return job
         return None
 
-    def cancel(self, job_id: str) -> Optional[DownloadJob]:
+    def cancel(self, job_id: str) -> DownloadJob | None:
         with self._lock:
             job = self._jobs.get(job_id)
         if job is None:
@@ -138,7 +138,7 @@ class DownloadManager:
                 job.progress = 100.0
                 job.message = "Already downloaded"
                 job.file_path = str(destination)
-                return
+                return None
 
             existing_bytes = part_file.stat().st_size if part_file.exists() else 0
             headers = {"Range": f"bytes={existing_bytes}-"} if existing_bytes > 0 else {}
@@ -158,7 +158,7 @@ class DownloadManager:
 
             if response_cm is None:
                 self._finalize(job, model, part_file, destination)
-                return
+                return None
 
             with response_cm as response:
                 if existing_bytes > 0 and response.status != 206:
@@ -180,7 +180,7 @@ class DownloadManager:
                             job.state = "cancelled"
                             job.message = "Download cancelled"
                             logger.info("Download cancelled for %s", model.id)
-                            return
+                            return None
 
                         chunk = response.read(CHUNK_BYTES)
                         if not chunk:
@@ -210,7 +210,7 @@ class DownloadManager:
             if job.cancel_event.is_set():
                 job.state = "cancelled"
                 job.message = "Download cancelled"
-                return
+                return None
 
             self._finalize(job, model, part_file, destination)
 
@@ -267,9 +267,6 @@ class DownloadManager:
                     with response_cm as response:
                         if existing_bytes > 0 and response.status != 206:
                             existing_bytes = 0  # Server ignored Range and restarted the body.
-                        content_length = response.headers.get("Content-Length")
-                        content_len = int(content_length) + existing_bytes if content_length else file.size
-
                         downloaded_in_file = existing_bytes
                         job.downloaded_bytes = downloaded_before_file + downloaded_in_file
                         mode = "ab" if existing_bytes > 0 else "wb"

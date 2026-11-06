@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AudioLines,
-  ChevronLeft,
+  AudioWaveform,
   Download,
-  Gauge,
+  Heart,
   Info,
+  Loader2,
   Languages,
   LockKeyhole,
+  Megaphone,
   Mic2,
-  Settings2,
+  Pause,
+  Play,
+  Podcast,
   Sparkles,
+  SlidersHorizontal,
+  Square,
   Wand2,
-  WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -23,17 +28,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Kbd } from "@/components/ui/kbd";
-import { PageHeader, StatChip } from "@/components/ui/page-header";
 import {
   Select,
   SelectContent,
@@ -43,9 +39,9 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Sheet,
   SheetContent,
@@ -54,9 +50,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ParamControl } from "@/components/studio/param-control";
-import { RenderBar } from "@/components/studio/render-bar";
-import { SentenceChips } from "@/components/studio/sentence-chips";
-import { TransportBar } from "@/components/studio/transport-bar";
 import { VOICE_PRESETS } from "@/components/studio/presets";
 import { VoicePicker } from "@/components/studio/voice-picker";
 import {
@@ -65,7 +58,6 @@ import {
 } from "@/components/waveform/waveform-player";
 import { api } from "@/lib/api";
 import { useAppActions } from "@/lib/app-context";
-import { chunkText, countWords } from "@/lib/chunk-preview";
 import {
   downloadBlob,
   IS_TAURI,
@@ -73,14 +65,66 @@ import {
   writeBlobToPath,
 } from "@/lib/desktop";
 import { useEngineStatus } from "@/lib/engine-status";
-import { estimateDurationSeconds, formatDuration } from "@/lib/format";
+import {
+  estimateDurationSeconds,
+  formatDuration,
+  formatTimecode,
+} from "@/lib/format";
+import { countWords } from "@/lib/chunk-preview";
 import { mockEngines, mockVoices } from "@/lib/mock";
-import { formatShortcut } from "@/lib/shortcuts";
 import { useHotkeys } from "@/lib/use-hotkeys";
+import { useTheme } from "@/lib/theme";
 import type { EngineInfo, JobStatus, SynthesisParams, VoiceProfile } from "@/lib/types";
 
-const DEFAULT_TEXT =
-  "Welcome to VoiceClone Studio. Everything is processed securely on your computer — no data ever leaves this machine.";
+const SCRIPT_SUGGESTIONS = [
+  {
+    title: "Podcast intro",
+    description: "Read this like a warm podcast intro",
+    icon: Podcast,
+    tint: "bg-[#f5e8df] text-[#b85d3e]",
+  },
+  {
+    title: "Calm and reassuring",
+    description: "Make this sound calm and reassuring",
+    icon: Heart,
+    tint: "bg-[#eaf0e7] text-[#557650]",
+  },
+  {
+    title: "Product announcement",
+    description: "Create a short product announcement",
+    icon: Megaphone,
+    tint: "bg-[#eeebf5] text-[#75628f]",
+  },
+];
+
+function describeRenderConfiguration(
+  voiceName: string,
+  engineName: string,
+  params: SynthesisParams,
+): string {
+  const pace =
+    params.speed < 0.85 ? "unhurried" : params.speed > 1.15 ? "brisk" : "natural";
+  const expression =
+    params.exaggeration < 0.85
+      ? "subtle"
+      : params.exaggeration > 1.25
+        ? "expressive"
+        : "balanced";
+  const variation =
+    params.temperature < 0.55
+      ? "consistent"
+      : params.temperature > 0.9
+        ? "spontaneous"
+        : "natural";
+  const voiceMatch =
+    params.cfg_weight < 2.2
+      ? "relaxed voice match"
+      : params.cfg_weight > 4.5
+        ? "close voice match"
+        : "balanced voice match";
+
+  return `Rendered with ${voiceName} on ${engineName} · ${params.language.toUpperCase()} · ${pace} pace · ${expression} expression · ${voiceMatch} · ${variation} variation.`;
+}
 
 function PresetButton({ preset, isActive, onClick }: { preset: typeof VOICE_PRESETS[0]; isActive: boolean; onClick: () => void }) {
   return (
@@ -120,7 +164,11 @@ function DrawerContent({
   activeEngine: EngineInfo | undefined;
   engines: EngineInfo[];
   params: SynthesisParams;
-  update: (patch: Partial<SynthesisParams>) => void;
+  update: (
+    patch:
+      | Partial<SynthesisParams>
+      | ((previous: SynthesisParams) => SynthesisParams),
+  ) => void;
   randomSeed: boolean;
   setRandomSeed: (v: boolean) => void;
   sentencePause: number;
@@ -423,27 +471,31 @@ function DrawerContent({
 
 export function StudioPage() {
   const { status: connection } = useEngineStatus();
+  const { resolvedTheme } = useTheme();
   const online = connection !== "offline";
+  const canvas = resolvedTheme === "dark" ? "bg-background" : "bg-white";
 
   const [voices, setVoices] = useState<VoiceProfile[]>([]);
   const [engines, setEngines] = useState<EngineInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [voice, setVoice] = useState<VoiceProfile | null>(null);
   const [engineName, setEngineName] = useState("Chatterbox TTS");
-  const [text, setText] = useState(DEFAULT_TEXT);
+  const [text, setText] = useState("");
   const [params, setParams] = useState<SynthesisParams>(mockEngines[0].default_params);
   const [randomSeed, setRandomSeed] = useState(true);
   const [sentencePause, setSentencePause] = useState(250);
 
   const [job, setJob] = useState<JobStatus | null>(null);
+  const [renderedText, setRenderedText] = useState("");
+  const [renderedConfiguration, setRenderedConfiguration] = useState<{
+    voiceName: string;
+    engineName: string;
+    params: SynthesisParams;
+  } | null>(null);
   const [starting, setStarting] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [volume, setVolume] = useState(100);
-  const [muted, setMuted] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
 
   const scriptRef = useRef<HTMLTextAreaElement>(null);
   const waveformRef = useRef<WaveformPlayerHandle>(null);
@@ -454,6 +506,7 @@ export function StudioPage() {
   );
 
   const isRunning = job?.state === "queued" || job?.state === "running";
+  const jobId = job?.id;
 
   useEffect(() => {
     let cancelled = false;
@@ -517,12 +570,10 @@ export function StudioPage() {
 
   const peaks = job?.peaks?.length ? job.peaks : null;
   const words = countWords(text);
-  const chunks = useMemo(() => chunkText(text), [text]);
   const estimatedSeconds = estimateDurationSeconds(words, params.speed);
 
   useEffect(() => {
-    if (!job || !isRunning) return;
-    const jobId = job.id;
+    if (!jobId || !isRunning) return;
     const timer = window.setInterval(async () => {
       try {
         const next = await api.getJob(jobId);
@@ -536,28 +587,22 @@ export function StudioPage() {
         } else if (next.state === "failed") {
           toast.error("Render failed", { description: next.error ?? undefined });
         }
-      } catch {
+      } catch (error) {
+        console.error("Could not refresh render status", error);
       }
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [job?.id, job?.state, isRunning]);
-
-  useEffect(() => {
-    if (!isRunning) {
-      setElapsed(0);
-      return;
-    }
-    const started = Date.now();
-    const timer = window.setInterval(
-      () => setElapsed((Date.now() - started) / 1000),
-      500,
-    );
-    return () => window.clearInterval(timer);
-  }, [isRunning, job?.id]);
+  }, [jobId, isRunning]);
 
   const update = useCallback(
-    (patch: Partial<SynthesisParams>) =>
-      setParams((previous) => ({ ...previous, ...patch })),
+    (
+      patch:
+        | Partial<SynthesisParams>
+        | ((previous: SynthesisParams) => SynthesisParams),
+    ) =>
+      setParams((previous) =>
+        typeof patch === "function" ? patch(previous) : { ...previous, ...patch },
+      ),
     [],
   );
 
@@ -582,7 +627,16 @@ export function StudioPage() {
     }
 
     setStarting(true);
-    setCurrentTime(0);
+    setRenderedText(text.trim());
+    const renderParams = {
+      ...params,
+      seed: randomSeed ? -1 : params.seed,
+    };
+    const configuration = {
+      voiceName: voice.name,
+      engineName,
+      params: renderParams,
+    };
     setDuration(0);
     setPlaying(false);
 
@@ -591,15 +645,15 @@ export function StudioPage() {
         voice_id: voice.id,
         engine_name: engineName,
         text: text.trim(),
-        params: { ...params, seed: randomSeed ? -1 : params.seed },
+        params: renderParams,
         sentence_pause_ms: sentencePause,
       });
+      setRenderedConfiguration(configuration);
       setJob(created);
       setAudioUrl(null);
       toast.message("Render started", {
-        description: `${created.total_chunks || 1} sentence chunk${
-          created.total_chunks === 1 ? "" : "s"
-        } queued.`,
+        description: `${created.total_chunks || 1} sentence chunk${created.total_chunks === 1 ? "" : "s"
+          } queued.`,
       });
     } catch (error) {
       toast.error("Could not start the render", {
@@ -608,11 +662,11 @@ export function StudioPage() {
       setJob((previous) =>
         previous
           ? {
-              ...previous,
-              state: "failed" as const,
-              error: error instanceof Error ? error.message : String(error),
-              message: "Render failed",
-            }
+            ...previous,
+            state: "failed" as const,
+            error: error instanceof Error ? error.message : String(error),
+            message: "Render failed",
+          }
           : previous,
       );
     } finally {
@@ -672,12 +726,6 @@ export function StudioPage() {
     waveformRef.current?.playPause();
   }, []);
 
-  const stopPlayback = useCallback(() => {
-    waveformRef.current?.stop();
-    setCurrentTime(0);
-    setPlaying(false);
-  }, []);
-
   const clearScript = useCallback(() => {
     setText("");
     scriptRef.current?.focus();
@@ -708,209 +756,283 @@ export function StudioPage() {
   );
 
   return (
-    <div className="flex min-h-screen flex-col gap-6">
-      <PageHeader
-        title="Studio"
-        description="Write the script, shape the delivery, render and export — all on this machine."
-        icon={AudioLines}
-        meta={
-          <>
-            <StatChip icon={Gauge} tone="accent">
-              {activeEngine?.name ?? "No engine"}
-            </StatChip>
-            {connection === "offline" ? (
-              <StatChip icon={WifiOff} tone="warning">
-                Offline demo
-              </StatChip>
-            ) : null}
-          </>
-        }
-        actions={
-          <>
-            <Button variant="ghost" size="icon" onClick={clearScript} aria-label="Clear script" title="Clear script (⌘⌫)">
-              <Sparkles className="size-4" />
-            </Button>
-            <Sheet>
-              <SheetTrigger
-                className="inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent
-                bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none
-                select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50
-                active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 h-7 w-7 rounded-[min(var(--radius-md),12px)]"
-                aria-label="Open settings drawer"
-                title="Settings"
-              >
-                <Settings2 className="size-4" />
-              </SheetTrigger>
-              <SheetContent side="right" className="w-[640px] sm:max-w-[640px] max-h-screen">
-                <SheetHeader>
-                  <SheetTitle>Settings</SheetTitle>
-                </SheetHeader>
-                <DrawerContent
-                  voice={voice}
-                  voices={voices}
-                  loading={loading}
-                  engineName={engineName}
-                  setEngineName={setEngineName}
-                  activeEngine={activeEngine}
-                  engines={engines}
-                  params={params}
-                  update={update}
-                  randomSeed={randomSeed}
-                  setRandomSeed={setRandomSeed}
-                  sentencePause={sentencePause}
-                  setSentencePause={setSentencePause}
-                  setVoice={setVoice}
-                />
-              </SheetContent>
-            </Sheet>
-            <Button onClick={() => void synthesize()} disabled={isRunning || !voice || !text.trim()} className="ml-2">
-              <Sparkles className="mr-1.5 size-4" />
-              Synthesize
-            </Button>
-          </>
-        }
-      />
-
-      <div className="flex min-w-0 flex-col gap-3">
-        <Card className="rounded-2xl shadow-[var(--shadow-soft)]">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="size-4 text-primary" />
-                Script
-              </CardTitle>
-              <span className="hidden items-center gap-1 text-[11px] text-muted-foreground sm:flex">
-                <Kbd>{formatShortcut("mod+enter")}</Kbd>
-                to render
-              </span>
+    <Sheet>
+      <div className={`-mx-4 -my-4 flex min-h-[calc(100dvh-3.5rem)] flex-col text-foreground md:-mx-6 md:-my-6 ${canvas}`}>
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/70 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-surface-accent text-primary">
+              <AudioLines className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">VoiceClone Studio</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {voice
+                  ? `${voice.name} · ${activeEngine?.name ?? engineName}`
+                  : "Choose a voice to get started"}
+              </p>
             </div>
-            <CardDescription>
-              The script is split into sentence-aware chunks before it reaches the engine.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Textarea
-              ref={scriptRef}
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Type or paste the script to speak…"
-              className="min-h-[140px] resize-y text-[15px] leading-relaxed rounded-xl border border-border bg-surface-raised focus:border-primary focus:ring-2 focus:ring-primary/20"
-              aria-label="Script to synthesize"
-            />
-
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <span data-numeric>{text.trim().length} chars</span>
-              <span data-numeric>{words} words</span>
-              <span data-numeric>~{estimatedSeconds.toFixed(1)}s audio</span>
-              <span data-numeric>{chunks.length} chunks</span>
-            </div>
-
-            <Separator />
-
-            <SentenceChips chunks={chunks} />
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="rounded-2xl shadow-[var(--shadow-soft)]">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <AudioLines className="size-4 text-primary" />
-                Output
-              </CardTitle>
-              <CardDescription>
-                {job?.state === "done"
-                  ? job.message
-                  : "The rendered audio, with a ruler you can scrub and click."}
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void exportAudio()}
-              disabled={!audioUrl}
-            >
-              <Download className="mr-1.5 size-4" />
-              Export WAV
-            </Button>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {audioUrl ? (
-            <WaveformPlayer
-              ref={waveformRef}
-              url={audioUrl}
-              peaks={peaks}
-              duration={duration || job?.duration_seconds || 0}
-              onTimeUpdate={setCurrentTime}
-              onPlayChange={setPlaying}
-              onReady={(loaded) => setDuration(loaded || duration)}
-              onEnded={() => {
-                setPlaying(false);
-                setCurrentTime(0);
-              }}
-            />
-          ) : (
-            <Empty className="border border-dashed rounded-2xl bg-surface-inset/60 py-8">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Info />
-                </EmptyMedia>
-                <EmptyTitle>
-                  {isRunning ? "Rendering the audio" : "No render yet"}
-                </EmptyTitle>
-                <EmptyDescription>
-                  {isRunning
-                    ? job?.message ?? "The engine is working — the waveform appears when it finishes."
-                    : "Run the script to produce a waveform you can scrub, loop and export."}
-                </EmptyDescription>
-              </EmptyHeader>
-              {!isRunning ? (
-                <EmptyContent>
-                  <Button size="sm" onClick={() => void synthesize()} disabled={!text.trim() || !voice}>
-                    <Sparkles className="mr-1.5 size-4" />
-                    Run synthesis
-                  </Button>
-                </EmptyContent>
-              ) : null}
-            </Empty>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            <Badge variant="outline" className="gap-1.5 rounded-full px-2.5 py-1 font-normal">
+              <span className={`size-1.5 rounded-full ${connection === "offline" ? "bg-status-warning" : "bg-status-success"}`} />
+              <span className="hidden sm:inline">{connection === "offline" ? "Offline demo" : "Engine ready"}</span>
+            </Badge>
+            <SheetTrigger
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm text-foreground transition-colors hover:bg-muted"
+              aria-label="Open voice controls"
+            >
+              <SlidersHorizontal className="size-3.5" />
+              <span className="hidden sm:inline">Voice controls</span>
+            </SheetTrigger>
+          </div>
+        </header>
 
-          <TransportBar
-            playing={playing}
-            currentTime={currentTime}
-            duration={duration || job?.duration_seconds || 0}
-            volume={volume}
-            muted={muted}
-            disabled={!audioUrl}
-            onPlayPause={togglePlayback}
-            onStop={stopPlayback}
-            onSkip={(seconds) => waveformRef.current?.skip(seconds)}
-            onVolumeChange={(next) => {
-              setVolume(next);
-              setMuted(next === 0);
-              waveformRef.current?.setVolume(next / 100);
-            }}
-            onMuteToggle={() => {
-              const nextMuted = !muted;
-              setMuted(nextMuted);
-              waveformRef.current?.setVolume(nextMuted ? 0 : volume / 100);
-            }}
+        <section className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col justify-center px-4 sm:px-6">
+            {!job && !starting ? (
+              <div className="mx-auto w-full max-w-3xl py-8">
+                <div className="mb-7 text-center">
+                  <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-2xl border border-primary/15 bg-surface-accent text-primary">
+                    <Sparkles className="size-5" />
+                  </div>
+                  <h1 className="font-heading text-4xl tracking-tight sm:text-5xl">
+                    What should we say?
+                  </h1>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                    Write something and I&apos;ll turn it into a natural voice.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {SCRIPT_SUGGESTIONS.map((suggestion) => (
+                    <button
+                      key={suggestion.title}
+                      type="button"
+                      onClick={() => {
+                        setText(suggestion.description);
+                        scriptRef.current?.focus();
+                      }}
+                      className="group rounded-2xl border border-border/80 bg-card/80 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card hover:shadow-[var(--shadow-soft)]"
+                    >
+                      <span className="mb-3 flex items-center justify-between gap-2">
+                        <span className={`flex size-8 items-center justify-center rounded-xl ${suggestion.tint}`}>
+                          <suggestion.icon className="size-4" />
+                        </span>
+                        <span aria-hidden="true" className="text-xs text-muted-foreground/60 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5">↗</span>
+                      </span>
+                      <span className="mb-1 block text-xs font-medium text-primary">
+                        {suggestion.title}
+                      </span>
+                      <span className="block text-sm leading-relaxed text-muted-foreground group-hover:text-foreground">
+                        {suggestion.description}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mx-auto w-full max-w-3xl space-y-7 py-8">
+                <div className="ml-5 border-l-2 border-border pl-4">
+                  <span className="text-xs text-muted-foreground">You</span>
+                  <p className="mt-2 text-sm leading-relaxed">{renderedText}</p>
+                </div>
+                <div>
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-surface-accent text-primary">
+                      <AudioWaveform className="size-3.5" />
+                    </span>
+                    <strong className="text-sm">VoiceClone</strong>
+                    <span className="text-xs text-muted-foreground">
+                      {isRunning || starting ? "creating voice…" : "just now"}
+                    </span>
+                  </div>
+                  <p className="mb-4 text-sm leading-relaxed">
+                    {job?.state === "failed"
+                      ? job.error ?? "The voice could not be generated."
+                      : isRunning || starting
+                        ? job?.message ?? "Rendering your script with the selected voice settings."
+                        : renderedConfiguration
+                          ? describeRenderConfiguration(
+                              renderedConfiguration.voiceName,
+                              renderedConfiguration.engineName,
+                              renderedConfiguration.params,
+                            )
+                          : "Your audio is ready."}
+                  </p>
+
+                  {audioUrl ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-inset/70 px-3 py-2.5">
+                      <Button
+                        size="icon"
+                        className="size-9 shrink-0 rounded-full"
+                        onClick={togglePlayback}
+                        aria-label={playing ? "Pause audio" : "Play audio"}
+                      >
+                        {playing ? <Pause /> : <Play />}
+                      </Button>
+                      <WaveformPlayer
+                        ref={waveformRef}
+                        url={audioUrl}
+                        peaks={peaks}
+                        duration={duration || job?.duration_seconds || 0}
+                        height={32}
+                        className="min-w-0 flex-1 border-0 bg-transparent"
+                        onPlayChange={setPlaying}
+                        onReady={(loaded) => setDuration(loaded || duration)}
+                        onEnded={() => setPlaying(false)}
+                      />
+                      <code className="shrink-0 text-[11px] text-muted-foreground">
+                        {formatTimecode(duration || job?.duration_seconds || 0)}
+                      </code>
+                    </div>
+                  ) : isRunning ? (
+                    <div className="flex items-center gap-3">
+                      <Progress
+                        value={job?.progress ?? 0}
+                        className="flex-1"
+                        aria-label="Render progress"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void cancel()}
+                        disabled={!job}
+                      >
+                        <Square />
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  {audioUrl ? (
+                    <div className="mt-3 flex items-center gap-4">
+                      <SheetTrigger
+                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label="Adjust voice"
+                      >
+                        <SlidersHorizontal className="size-3.5" />
+                        Adjust voice
+                      </SheetTrigger>
+                      <button
+                        type="button"
+                        onClick={() => void exportAudio()}
+                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        <Download className="size-3.5" />
+                        Export
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 px-4 pb-4 sm:px-6 sm:pb-5">
+            <Card className="mx-auto w-full max-w-3xl rounded-2xl border-border/80 shadow-[var(--shadow-soft)]">
+              <CardContent className="space-y-3 p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Your script</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Shape the words and delivery before you render.
+                    </p>
+                  </div>
+                  <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
+                    <Mic2 className="size-3.5 text-primary" />
+                    {voice?.name ?? "No voice selected"}
+                  </span>
+                </div>
+                <Textarea
+                  ref={scriptRef}
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing &&
+                      event.keyCode !== 229
+                    ) {
+                      event.preventDefault();
+                      void synthesize();
+                    }
+                  }}
+                  placeholder="Describe the voice you want to create..."
+                  aria-label="Voice prompt"
+                  rows={3}
+                  className="min-h-[76px] resize-y rounded-xl border-border/70 bg-surface-inset/60 px-3 py-2.5 text-sm leading-relaxed focus-visible:bg-card"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Info className="size-3" />
+                      Voice stays on this machine
+                    </span>
+                    <span data-numeric>{text.trim().length} characters</span>
+                    <span data-numeric>{words} words · ~{estimatedSeconds.toFixed(1)}s</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {text ? (
+                      <Button variant="ghost" size="sm" onClick={clearScript}>
+                        Clear
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      onClick={() => void synthesize()}
+                      disabled={isRunning || starting || !voice || !text.trim()}
+                      className="h-9 rounded-lg px-3"
+                    >
+                      {starting ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                      {starting ? "Starting…" : isRunning ? "Generating…" : "Generate voice"}
+                      <Kbd className="ml-1 border-primary-foreground/30 bg-primary-foreground/15 text-primary-foreground">
+                        ↵
+                      </Kbd>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <p className="mt-2.5 text-center text-[10px] text-muted-foreground/75">
+              VoiceClone can make mistakes. Review generated audio before exporting.
+            </p>
+          </div>
+        </section>
+
+        {(job || starting) ? (
+          <div className="fixed bottom-5 right-5 z-30">
+            <SheetTrigger
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-3.5 text-sm text-foreground shadow-[var(--shadow-soft)] transition-colors hover:bg-muted"
+              aria-label="Open voice controls"
+            >
+              <SlidersHorizontal className="size-3.5" />
+              Voice controls
+            </SheetTrigger>
+          </div>
+        ) : null}
+
+        <SheetContent side="right" className="w-[640px] sm:max-w-[640px] max-h-screen">
+          <SheetHeader>
+            <SheetTitle>Voice controls</SheetTitle>
+          </SheetHeader>
+          <DrawerContent
+            voice={voice}
+            voices={voices}
+            loading={loading}
+            engineName={engineName}
+            setEngineName={setEngineName}
+            activeEngine={activeEngine}
+            engines={engines}
+            params={params}
+            update={update}
+            randomSeed={randomSeed}
+            setRandomSeed={setRandomSeed}
+            sentencePause={sentencePause}
+            setSentencePause={setSentencePause}
+            setVoice={setVoice}
           />
-        </CardContent>
-      </Card>
-
-      <RenderBar
-        job={job}
-        starting={starting}
-        canRender={Boolean(text.trim()) && Boolean(voice)}
-        elapsed={elapsed}
-        estimatedSeconds={estimatedSeconds}
-        onRun={() => void synthesize()}
-        onCancel={() => void cancel()}
-      />
-    </div>
+        </SheetContent>
+      </div>
+    </Sheet>
   );
 }

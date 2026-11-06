@@ -23,7 +23,6 @@ import { EngineStatusBlock } from "@/components/engine-status";
 import { formatShortcut } from "@/lib/shortcuts";
 import type { PageKey } from "@/lib/pages";
 
-export type { PageKey } from "@/lib/pages";
 
 interface NavItem {
   key: PageKey;

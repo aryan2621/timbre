@@ -6,13 +6,11 @@ silence trimming (VAD), and EBU R128 (-23 LUFS) loudness normalization.
 from __future__ import annotations
 
 import math
-from pathlib import Path
-from typing import Optional, Tuple
 
 try:
     import numpy as np
-except ImportError:
-    np = None
+except ImportError:  # pragma: no cover - numpy is a hard requirement in practice
+    np = None  # type: ignore[assignment]
 
 from app.core.logging_setup import get_logger
 
@@ -163,7 +161,7 @@ class AudioPreprocessor:
         apply_denoise: bool = True,
         apply_vad: bool = True,
         apply_normalize: bool = True,
-    ) -> Tuple[np.ndarray, int]:
+    ) -> tuple[np.ndarray, int]:
         """Runs the complete reference audio preprocessing pipeline."""
         # 1. Convert to mono
         mono = cls.to_mono(audio)

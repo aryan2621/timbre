@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.core.logging_setup import get_logger
 from app.core.paths import paths
@@ -24,7 +24,7 @@ class AppConfig:
     theme: str = "dark"  # "dark", "light", "high_contrast"
     first_run_completed: bool = False
     global_ethics_consent: bool = False
-    consent_timestamp: Optional[str] = None
+    consent_timestamp: str | None = None
 
     # Model & Engine Defaults
     default_engine: str = "Chatterbox TTS"
@@ -36,8 +36,8 @@ class AppConfig:
     clear_device_cache_after_job: bool = False
 
     # Audio I/O
-    audio_input_device: Optional[str] = None
-    audio_output_device: Optional[str] = None
+    audio_input_device: str | None = None
+    audio_output_device: str | None = None
     default_export_format: str = "wav"  # "wav", "mp3", "flac", "ogg"
     default_sample_rate: int = 24000
     default_bit_depth: int = 16  # 16, 24, 32
@@ -47,8 +47,8 @@ class AppConfig:
     inject_metadata_tag: bool = True  # Embed 'AI-generated voice' tag in files
 
     # Paths overrides (empty defaults to standard paths)
-    custom_models_dir: Optional[str] = None
-    custom_exports_dir: Optional[str] = None
+    custom_models_dir: str | None = None
+    custom_exports_dir: str | None = None
 
     # Synthesis defaults
     default_temperature: float = 0.75
@@ -64,12 +64,12 @@ class AppConfig:
     # Logging
     log_level: str = "INFO"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary representation."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> AppConfig:
+    def from_dict(cls, data: dict[str, Any]) -> AppConfig:
         """Construct configuration from dictionary, ignoring unexpected keys."""
         valid_fields = cls.__dataclass_fields__.keys()
         filtered = {k: v for k, v in data.items() if k in valid_fields}
@@ -79,7 +79,7 @@ class AppConfig:
 class ConfigManager:
     """Manages loading, saving, and querying application settings."""
 
-    def __init__(self, config_file: Optional[Path] = None) -> None:
+    def __init__(self, config_file: Path | None = None) -> None:
         self.config_file = config_file or paths.config_path
         self.config: AppConfig = self.load()
 
@@ -92,7 +92,7 @@ class ConfigManager:
             return default_config
 
         try:
-            with open(self.config_file, "r", encoding="utf-8") as f:
+            with open(self.config_file, encoding="utf-8") as f:
                 data = json.load(f)
             logger.debug("Configuration loaded from %s", self.config_file)
             return AppConfig.from_dict(data)
@@ -100,7 +100,7 @@ class ConfigManager:
             logger.error("Failed to load configuration from %s: %s. Using defaults.", self.config_file, e)
             return AppConfig()
 
-    def save(self, config: Optional[AppConfig] = None) -> bool:
+    def save(self, config: AppConfig | None = None) -> bool:
         """Save active configuration to disk."""
         if config is not None:
             self.config = config

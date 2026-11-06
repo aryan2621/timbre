@@ -12,7 +12,7 @@ const ABBREVIATIONS = new Set([
   "sept", "oct", "nov", "dec",
 ]);
 
-export function splitIntoSentences(text: string): string[] {
+function splitIntoSentences(text: string): string[] {
   const cleaned = text.trim();
   if (!cleaned) return [];
 

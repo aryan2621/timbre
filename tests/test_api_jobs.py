@@ -116,7 +116,7 @@ class _JobApiTestCase(unittest.TestCase):
             if payload.get("state") in states:
                 return payload
             time.sleep(0.05)
-        self.fail(f"job {job_id} never reached {states}: {payload}")
+        raise AssertionError(f"job {job_id} never reached {states}: {payload}")
 
 
 class TestJobFlow(_JobApiTestCase):

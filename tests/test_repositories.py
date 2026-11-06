@@ -2,9 +2,9 @@
 Unit tests for SQLite database management, voice repository, and history repository.
 """
 
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 from app.data.database import DatabaseManager
 from app.data.history_repo import HistoryRepository
@@ -67,7 +67,7 @@ class TestRepositories(unittest.TestCase):
             consent_timestamp="2026-11-02T12:00:00Z",
         ))
 
-        clip1 = self.voice_repo.add_clip(profile.id, VoiceClip(
+        self.voice_repo.add_clip(profile.id, VoiceClip(
             file_path="/tmp/clip1.wav",
             original_filename="clip1.wav",
             duration_seconds=10.0,

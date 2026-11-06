@@ -38,6 +38,9 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pyinstaller>=6.5.0",
+    "ruff>=0.17.0",
+    "mypy>=1.11.0",
+    "vulture>=2.14",
   ]
 
 [project.scripts]
@@ -46,3 +49,98 @@ voiceclone-api = "app.api.server:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["voiceclone*", "app*"]
+
+# ---------------------------------------------------------------------------
+# Ruff - linting + import hygiene
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "RET", # flake8-return
+]
+ignore = [
+    "E501",    # line length is handled by the formatter
+    "B008",    # FastAPI Depends()/Body() in defaults is idiomatic
+    "SIM105",  # contextlib.suppress is not always clearer
+    "RET504",  # named return values aid readability in service code
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Route modules intentionally re-export names for backwards compatibility.
+"app/api/server.py" = ["E402", "F401"]
+# Tests may use private helpers and assert loosely on purpose.
+"tests/*" = ["B011", "SIM117"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+# ---------------------------------------------------------------------------
+# mypy - static type checking
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+files = ["app"]
+mypy_path = "typings"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = false
+no_implicit_optional = true
+check_untyped_defs = false
+exclude = ["^app/audio/player\\.py$"]
+
+# The bundled PySide6 stubs contain invalid Python indentation, so mypy's own
+# parser rejects them. They are skipped rather than type-checked.
+[[tool.mypy.overrides]]
+module = ["PySide6.*"]
+follow_imports = "skip"
+ignore_errors = true
+
+# The Qt worker modules are UI glue and are excluded from checking, but the
+# service layer imports them, so they are skipped on the way in.
+[[tool.mypy.overrides]]
+module = ["app.workers.*", "app.audio.player"]
+follow_imports = "skip"
+ignore_errors = true
+
+# ---------------------------------------------------------------------------
+# vulture - dead code detection
+# ---------------------------------------------------------------------------
+[tool.vulture]
+min_confidence = 80
+paths = ["app", "tests"]
+# Every name below is part of a public signature and must not be removed:
+#   *_                - private/protected convention
+#   to_dict/from_dict - serialisation protocol
+#   main/run          - entry points
+#   args/time_info    - PortAudio callback + Qt signal signatures
+#   min_chars_per_chunk / min_silence_duration_ms
+#   source_audio_path / target_reference_path
+#                       - public parameters of overridable engine/audio methods
+ignore_names = [
+    "_*",
+    "to_dict",
+    "from_dict",
+    "main",
+    "run",
+    "args",
+    "time_info",
+    "min_chars_per_chunk",
+    "min_silence_duration_ms",
+    "source_audio_path",
+    "target_reference_path",
+    "a",
+]

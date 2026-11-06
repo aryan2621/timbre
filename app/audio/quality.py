@@ -6,12 +6,12 @@ Calculates SNR, clipping, duration limits, and acoustic consistency.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Tuple
+from typing import Any
 
 try:
     import numpy as np
-except ImportError:
-    np = None
+except ImportError:  # pragma: no cover - numpy is a hard requirement in practice
+    np = None  # type: ignore[assignment]
 
 from app.core.logging_setup import get_logger
 from app.data.models import QualityReport
@@ -48,7 +48,7 @@ class AudioQualityChecker:
         channels = 1 if audio.ndim == 1 else audio.shape[-1]
         mono = audio if audio.ndim == 1 else np.mean(audio, axis=-1)
 
-        warnings: List[str] = []
+        warnings: list[str] = []
         deductions: int = 0
 
         # 1. Duration check
@@ -86,7 +86,7 @@ class AudioQualityChecker:
         score = max(0, min(100, 100 - deductions))
         is_acceptable = score >= 50 and duration >= 3.0
 
-        details: Dict[str, float] = {
+        details: dict[str, float] = {
             "peak_amplitude": float(peak),
             "estimated_snr_db": float(snr_db),
             "clipping_percentage": float(clipping_ratio * 100.0),
@@ -123,17 +123,17 @@ class AudioQualityChecker:
             return 20.0
 
         num_frames = len(mono) // frame_size
-        frame_powers = []
+        frame_powers: list[Any] = []
         for i in range(num_frames):
             frame = mono[i * frame_size : (i + 1) * frame_size]
             power = np.mean(frame**2)
             frame_powers.append(power)
 
-        frame_powers = np.sort(np.array(frame_powers))
+        sorted_powers = np.sort(np.array(frame_powers))
         # Noise floor estimated from lowest 10% frames
-        noise_floor_power = np.mean(frame_powers[: max(1, int(len(frame_powers) * 0.1))])
+        noise_floor_power = np.mean(sorted_powers[: max(1, int(len(sorted_powers) * 0.1))])
         # Signal power estimated from top 40% frames
-        signal_power = np.mean(frame_powers[int(len(frame_powers) * 0.6) :])
+        signal_power = np.mean(sorted_powers[int(len(sorted_powers) * 0.6) :])
 
         if noise_floor_power < 1e-12:
             return 45.0  # Pristine noise floor
@@ -143,7 +143,7 @@ class AudioQualityChecker:
         return min(60.0, max(0.0, snr_db))
 
     @staticmethod
-    def _check_complexity_and_music(mono: np.ndarray, sample_rate: int) -> Tuple[bool, str]:
+    def _check_complexity_and_music(mono: np.ndarray, sample_rate: int) -> tuple[bool, str]:
         """
         Heuristic to detect sustained background music or multi-speaker overlapping
         using spectral flatness and zero-crossing rate variance.

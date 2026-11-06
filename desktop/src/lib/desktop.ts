@@ -117,8 +117,3 @@ export function downloadBlob(blob: Blob, filename: string): void {
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-
-/** Reads a file that the user dropped or picked with a browser input. */
-export function readFileAsText(file: File): Promise<string> {
-  return file.text();
-}

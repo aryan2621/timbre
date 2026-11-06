@@ -13,13 +13,12 @@ downloaded only when every listed file is present (no ``.part`` files).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
 
 from app.data.models import ModelFile, ModelMetadata
 
 _CHATTERBOX = "https://huggingface.co/ResembleAI/chatterbox/resolve/main"
 
-CATALOG_MODELS: List[ModelMetadata] = [
+CATALOG_MODELS: list[ModelMetadata] = [
     ModelMetadata(
         id="chatterbox-tts",
         name="Chatterbox TTS",
@@ -99,6 +98,6 @@ def is_model_present(model: ModelMetadata, models_dir: Path) -> bool:
     return any(f.is_file() and f.suffix != ".part" for f in model_path.iterdir())
 
 
-def get_model(model_id: str) -> Optional[ModelMetadata]:
+def get_model(model_id: str) -> ModelMetadata | None:
     """Looks up a catalog model by its stable id."""
     return next((model for model in CATALOG_MODELS if model.id == model_id), None)

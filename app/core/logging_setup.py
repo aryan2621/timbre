@@ -5,9 +5,8 @@ Logging configuration with rotating file handlers and console output.
 from __future__ import annotations
 
 import logging
-from logging.handlers import RotatingFileHandler
 import sys
-from typing import Optional
+from logging.handlers import RotatingFileHandler
 
 from app.core.paths import paths
 
@@ -58,7 +57,7 @@ def setup_logging(level_name: str = "INFO") -> logging.Logger:
     return logger
 
 
-def get_logger(module_name: Optional[str] = None) -> logging.Logger:
+def get_logger(module_name: str | None = None) -> logging.Logger:
     """
     Returns a child logger scoped to a specific module or component.
     """

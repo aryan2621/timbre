@@ -8,7 +8,7 @@ export type PageKey =
   | "models"
   | "settings";
 
-export const PAGE_ORDER: PageKey[] = [
+const PAGE_ORDER: PageKey[] = [
   "studio",
   "voices",
   "batch",

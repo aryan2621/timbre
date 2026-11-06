@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Moon, PanelLeft, Search, Sparkles, Sun } from "lucide-react";
+import { Moon, Search, Sparkles, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -92,4 +92,3 @@ export function AppHeader() {
 }
 
 /** Kept for the collapsed-sidebar affordance in the sidebar header. */
-export { PanelLeft };

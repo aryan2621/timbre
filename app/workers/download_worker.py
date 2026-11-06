@@ -6,23 +6,29 @@ and download speed calculation.
 from __future__ import annotations
 
 import hashlib
-import os
-from pathlib import Path
 import time
-from typing import Optional
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 try:
     from PySide6.QtCore import QObject, QThread, Signal  # type: ignore
 except ImportError:
     class Signal:
-        def __init__(self, *args): pass
-        def emit(self, *args): pass
-    class QObject: pass
+        def __init__(self, *args):
+            pass
+
+        def emit(self, *args):
+            pass
+    class QObject:
+        pass
+
     class QThread:
-        def start(self): pass
-        def wait(self): pass
+        def start(self):
+            pass
+
+        def wait(self):
+            pass
 
 from app.core.logging_setup import get_logger
 
@@ -41,8 +47,8 @@ class ModelDownloadWorker(QThread):
         model_id: str,
         download_url: str,
         destination_path: Path,
-        expected_sha256: Optional[str] = None,
-        parent: Optional[QObject] = None,
+        expected_sha256: str | None = None,
+        parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self.model_id = model_id

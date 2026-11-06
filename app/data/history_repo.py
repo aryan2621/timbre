@@ -4,14 +4,11 @@ Data repository for speech synthesis history logging and retrieval.
 
 from __future__ import annotations
 
-from datetime import datetime
-import json
 import os
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from app.core.logging_setup import get_logger
 import app.data.database as db_mod
+from app.core.logging_setup import get_logger
 from app.data.models import HistoryEntry, utc_now_iso
 
 logger = get_logger("history_repo")
@@ -48,7 +45,7 @@ class HistoryRepository:
         logger.debug("Logged synthesis history entry ID: %s", entry.id)
         return entry
 
-    def get_entry_by_id(self, entry_id: int) -> Optional[HistoryEntry]:
+    def get_entry_by_id(self, entry_id: int) -> HistoryEntry | None:
         """Retrieves a single generation record by its database ID."""
         with db_mod.db_manager.get_cursor() as cursor:
             cursor.execute("SELECT * FROM history WHERE id = ?", (entry_id,))
@@ -57,7 +54,7 @@ class HistoryRepository:
                 return None
             return self._row_to_entry(row)
 
-    def list_recent(self, limit: int = 100, offset: int = 0) -> List[HistoryEntry]:
+    def list_recent(self, limit: int = 100, offset: int = 0) -> list[HistoryEntry]:
         """Returns the most recent generation entries."""
         with db_mod.db_manager.get_cursor() as cursor:
             cursor.execute(
@@ -67,13 +64,13 @@ class HistoryRepository:
             rows = cursor.fetchall()
             return [self._row_to_entry(r) for r in rows]
 
-    def search(self, query: str, limit: int = 50) -> List[HistoryEntry]:
+    def search(self, query: str, limit: int = 50) -> list[HistoryEntry]:
         """Filters history items matching query in prompt_text or voice_name."""
         q = f"%{query.strip()}%"
         with db_mod.db_manager.get_cursor() as cursor:
             cursor.execute(
                 """
-                SELECT * FROM history 
+                SELECT * FROM history
                 WHERE prompt_text LIKE ? OR voice_name LIKE ? OR engine_name LIKE ?
                 ORDER BY created_at DESC LIMIT ?
                 """,

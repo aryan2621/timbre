@@ -5,7 +5,6 @@ Sentence-aware text chunker with speech duration estimation and punctuation hand
 from __future__ import annotations
 
 import re
-from typing import List, Tuple
 
 
 class TextChunker:
@@ -31,7 +30,7 @@ class TextChunker:
         return max(0.5, base_seconds / max(0.1, speed_multiplier))
 
     @classmethod
-    def count_metrics(cls, text: str) -> Tuple[int, int]:
+    def count_metrics(cls, text: str) -> tuple[int, int]:
         """Returns (character_count, word_count) for the input text."""
         stripped = text.strip()
         char_count = len(stripped)
@@ -39,7 +38,7 @@ class TextChunker:
         return char_count, word_count
 
     @classmethod
-    def split_into_sentences(cls, text: str) -> List[str]:
+    def split_into_sentences(cls, text: str) -> list[str]:
         """
         Splits text into sentences based on punctuation while respecting common abbreviations.
         """
@@ -49,7 +48,7 @@ class TextChunker:
 
         # Split across paragraphs or line breaks first
         paragraphs = [p.strip() for p in re.split(r"\n+", cleaned) if p.strip()]
-        sentences: List[str] = []
+        sentences: list[str] = []
 
         for p in paragraphs:
             # Tokenize by punctuation (? ! .) followed by whitespace or quotes
@@ -65,9 +64,8 @@ class TextChunker:
                     if last_word in cls.ABBREVIATIONS:
                         buffer += " " + part
                         continue
-                    else:
-                        sentences.append(buffer.strip())
-                        buffer = part
+                    sentences.append(buffer.strip())
+                    buffer = part
                 else:
                     buffer = part
 
@@ -82,7 +80,7 @@ class TextChunker:
         text: str,
         max_chars_per_chunk: int = 240,
         min_chars_per_chunk: int = 30,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Groups sentences into coherent chunks that fit comfortably within engine limits.
         If a single sentence exceeds max_chars_per_chunk, it is split by secondary punctuation
@@ -92,7 +90,7 @@ class TextChunker:
         if not sentences:
             return []
 
-        chunks: List[str] = []
+        chunks: list[str] = []
         current_chunk = ""
 
         for sentence in sentences:
@@ -122,10 +120,10 @@ class TextChunker:
         return chunks
 
     @classmethod
-    def _split_long_sentence(cls, sentence: str, max_chars: int) -> List[str]:
+    def _split_long_sentence(cls, sentence: str, max_chars: int) -> list[str]:
         """Splits an overly long single sentence by semicolons, colons, commas, or words."""
         clause_parts = re.split(r"([,;:\—\–\-])", sentence)
-        sub_chunks: List[str] = []
+        sub_chunks: list[str] = []
         buf = ""
 
         for part in clause_parts:

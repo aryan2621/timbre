@@ -1,4 +1,4 @@
-export interface VoiceClip {
+interface VoiceClip {
   id: number;
   profile_id: number;
   file_path: string;
@@ -47,7 +47,7 @@ export interface EngineInfo {
   default_params: SynthesisParams;
 }
 
-export type JobState = "queued" | "running" | "done" | "failed" | "cancelled";
+type JobState = "queued" | "running" | "done" | "failed" | "cancelled";
 
 export interface JobStatus {
   id: string;
@@ -92,7 +92,7 @@ export interface ModelInfo {
   download_job?: DownloadJob | null;
 }
 
-export type DownloadState = "queued" | "running" | "done" | "failed" | "cancelled";
+type DownloadState = "queued" | "running" | "done" | "failed" | "cancelled";
 
 export interface DownloadJob {
   id: string;
@@ -145,14 +145,14 @@ export interface BatchRequestItem {
   filename: string;
 }
 
-export type BatchItemState =
+type BatchItemState =
   | "pending"
   | "running"
   | "done"
   | "failed"
   | "cancelled";
 
-export interface BatchItem {
+interface BatchItem {
   index: number;
   filename: string;
   text: string;

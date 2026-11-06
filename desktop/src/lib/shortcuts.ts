@@ -38,8 +38,6 @@ export const SHORTCUTS: ShortcutDefinition[] = [
   { id: "focus-script", combo: "mod+shift+t", label: "Focus the script editor", group: "Studio" },
 ];
 
-export const SHORTCUT_BY_ID = new Map(SHORTCUTS.map((item) => [item.id, item]));
-
 export const NAVIGATION_SHORTCUTS: Record<string, PageKey> = {
   "mod+1": "studio",
   "mod+2": "voices",

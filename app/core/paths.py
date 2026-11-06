@@ -6,9 +6,8 @@ using standard cross-platform platformdirs conventions, with robust fallback han
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 APP_NAME = "VoiceCloneStudio"
 APP_AUTHOR = "VoiceClone"

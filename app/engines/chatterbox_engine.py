@@ -7,20 +7,18 @@ from __future__ import annotations
 
 import importlib.util
 import os
-from pathlib import Path
-import random
 import time
-from typing import Callable, List, Optional, Tuple
+from collections.abc import Callable
+from pathlib import Path
 
 try:
     import numpy as np
-except ImportError:
-    np = None
+except ImportError:  # pragma: no cover - numpy is a hard requirement in practice
+    np = None  # type: ignore[assignment]
 
 from app.core.config import config_manager
 from app.core.device import device_manager
 from app.core.logging_setup import get_logger
-from app.core.paths import paths
 from app.engines.base import EngineLicense, SynthesisParameters, TTSEngine
 
 logger = get_logger("chatterbox")
@@ -152,7 +150,7 @@ class ChatterboxEngine(TTSEngine):
         )
 
     @property
-    def supported_languages(self) -> List[str]:
+    def supported_languages(self) -> list[str]:
         # English uses the English-specialized model; other languages use
         # Chatterbox MultilingualTTS (MIT) which natively supports Hindi and 22
         # more languages.
@@ -193,7 +191,7 @@ class ChatterboxEngine(TTSEngine):
             enable_watermark=True,
         )
 
-    def load_model(self, progress_callback: Optional[Callable[[float, str], None]] = None) -> bool:
+    def load_model(self, progress_callback: Callable[[float, str], None] | None = None) -> bool:
         """Loads neural network weights onto target execution device."""
         if self._is_loaded:
             return True
@@ -304,7 +302,7 @@ class ChatterboxEngine(TTSEngine):
         text: str,
         reference_audio_path: str | Path,
         params: SynthesisParameters,
-    ) -> Tuple[object, int]:
+    ) -> tuple[np.ndarray, int]:
         """
         Synthesizes speech conditioned on text and reference speaker timbre.
         """
@@ -342,15 +340,16 @@ class ChatterboxEngine(TTSEngine):
                 conds, used_cache = self._resolve_conditionals(
                     model, reference_audio_path, params.exaggeration, cache
                 )
-                generate_kwargs = dict(
-                    repetition_penalty=params.repetition_penalty,
-                    min_p=0.05,
-                    top_p=params.top_p,
-                    audio_prompt_path=None,  # conditions are (re)used via self.conds / cache
-                    exaggeration=params.exaggeration,
-                    cfg_weight=params.cfg_weight,
-                    temperature=params.temperature,
-                )
+                generate_kwargs = {
+                    "repetition_penalty": params.repetition_penalty,
+                    "min_p": 0.05,
+                    "top_p": params.top_p,
+                    # conditions are (re)used via self.conds / cache
+                    "audio_prompt_path": None,
+                    "exaggeration": params.exaggeration,
+                    "cfg_weight": params.cfg_weight,
+                    "temperature": params.temperature,
+                }
                 if use_mtl:
                     wav = model.generate(text, language_id=language, **generate_kwargs)
                 else:
@@ -375,7 +374,7 @@ class ChatterboxEngine(TTSEngine):
         text: str,
         reference_audio_path: str | Path,
         params: SynthesisParameters,
-    ) -> Tuple[object, int]:
+    ) -> tuple[np.ndarray, int]:
         """
         Synthesize a single chunk for streaming playback.
         Delegates to clone_and_synthesize but is named to signal intent:

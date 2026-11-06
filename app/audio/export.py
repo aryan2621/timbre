@@ -5,14 +5,12 @@ and ethical metadata tagging ('AI-generated voice').
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Dict, Optional
 
 try:
     import numpy as np
-except ImportError:
-    np = None
+except ImportError:  # pragma: no cover - numpy is a hard requirement in practice
+    np = None  # type: ignore[assignment]
 
 from app.audio.preprocess import AudioPreprocessor
 from app.core.logging_setup import get_logger
@@ -33,9 +31,9 @@ class AudioExporter:
         sample_rate: int,
         output_path: Path,
         format_str: str = "wav",
-        target_sample_rate: Optional[int] = None,
+        target_sample_rate: int | None = None,
         bit_depth: int = 16,
-        metadata: Optional[Dict[str, str]] = None,
+        metadata: dict[str, str] | None = None,
     ) -> bool:
         """
         Exports numpy audio array to designated file format on disk.
@@ -111,7 +109,7 @@ class AudioExporter:
         output_path: Path,
         fmt: str,
         bit_depth: int,
-        metadata: Dict[str, str],
+        metadata: dict[str, str],
     ) -> bool:
         """Exports compressed audio (MP3, OGG) using soundfile (for OGG) or pydub + ffmpeg (for MP3)."""
         if fmt == "ogg":

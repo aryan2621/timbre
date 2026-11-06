@@ -81,7 +81,8 @@ class AudioRecorder:
         with self._lock:
             self._frames = []
 
-        def audio_callback(indata, frames, time_info, status):
+        def audio_callback(indata, frames, time_info, status):  # type: ignore - frames param required by sounddevice callback API
+            _ = frames  # silence unused parameter warning; sounddevice callback API
             if status:
                 logger.debug("Audio input status: %s", status)
             with self._lock:

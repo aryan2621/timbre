@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import {
   CircleCheck,
@@ -14,7 +14,6 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,19 +38,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VoicePicker } from "@/components/studio/voice-picker";
-import { api } from "@/lib/api";
 import { useApp, useAppActions } from "@/lib/app-context";
-import { parseScript, type ParsedLine } from "@/lib/batch-script";
-import {
-  IS_TAURI,
-  pickFolder,
-  pickScriptFile,
-  readTextFile,
-} from "@/lib/desktop";
 import { useEngineStatus } from "@/lib/engine-status";
 import { formatDuration } from "@/lib/format";
-import { mockEngines, mockVoices } from "@/lib/mock";
-import type { BatchJob, EngineInfo, VoiceProfile } from "@/lib/types";
+import {
+  useBatchJob,
+  useBatchLibrary,
+  useScriptImport,
+} from "@/hooks/use-batch";
 
 const STATE_STYLE: Record<
   string,
@@ -98,103 +92,36 @@ export function BatchPage() {
   const online = connection !== "offline";
   const { intent, consumeIntent } = useApp();
 
-  const [lines, setLines] = useState<ParsedLine[]>([]);
-  const [fileName, setFileName] = useState("");
-  const [voices, setVoices] = useState<VoiceProfile[]>([]);
-  const [engines, setEngines] = useState<EngineInfo[]>(mockEngines);
-  const [voice, setVoice] = useState<VoiceProfile | null>(null);
-  const [engineName, setEngineName] = useState("Chatterbox TTS");
-  const [outputDir, setOutputDir] = useState("");
-  const [job, setJob] = useState<BatchJob | null>(null);
-  const [starting, setStarting] = useState(false);
-  const [loading, setLoading] = useState(true);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const running = job?.state === "queued" || job?.state === "running";
+  const {
+    voices,
+    engines,
+    voice,
+    setVoice,
+    engineName,
+    setEngineName,
+    activeEngine,
+    loading,
+  } = useBatchLibrary(online);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!online) {
-        if (!cancelled) {
-          setVoices(mockVoices);
-          setEngines(mockEngines);
-          setLoading(false);
-        }
-        return;
-      }
-      try {
-        const [nextVoices, nextEngines] = await Promise.all([
-          api.listVoices(),
-          api.listEngines(),
-        ]);
-        if (cancelled) return;
-        setVoices(nextVoices);
-        setEngines(nextEngines.length > 0 ? nextEngines : mockEngines);
-      } catch {
-        if (!cancelled) {
-          setVoices(mockVoices);
-          setEngines(mockEngines);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [online]);
+  const batchJob = useBatchJob({
+    voice,
+    engineName,
+    online,
+  });
 
-  useEffect(() => {
-    if (!voices.length) return;
-    setVoice((previous) => {
-      if (previous && voices.some((item) => item.id === previous.id)) return previous;
-      return voices[0] ?? null;
-    });
-  }, [voices]);
+  const {
+    lines,
+    fileName,
+    outputDir,
+    importScript,
+    onBrowserFile,
+    chooseFolder,
+    clearScript,
+  } = useScriptImport(fileInputRef, batchJob.reset);
 
-  useEffect(() => {
-    if (!engines.length) return;
-    const current = engines.find((engine) => engine.name === engineName);
-    if (!current?.is_available) {
-      const preferred = engines.find((engine) => engine.is_available) ?? engines[0];
-      if (preferred && preferred.name !== engineName) setEngineName(preferred.name);
-    }
-  }, [engines, engineName]);
-
-  /* ------------------------------------------------------------- import */
-
-  const applyScript = useCallback((name: string, content: string) => {
-    const parsed = parseScript(name, content);
-    setLines(parsed);
-    setFileName(name);
-    setJob(null);
-    toast.success(`Loaded ${parsed.length} line${parsed.length === 1 ? "" : "s"}`, {
-      description: name,
-    });
-  }, []);
-
-  const importScript = useCallback(async () => {
-    if (IS_TAURI) {
-      const path = await pickScriptFile();
-      if (!path) return;
-      const content = await readTextFile(path);
-      if (content === null) {
-        toast.error("Could not read that file");
-        return;
-      }
-      applyScript(path.split("/").pop() ?? path, content);
-      return;
-    }
-    fileInputRef.current?.click();
-  }, [applyScript]);
-
-  const onBrowserFile = async (file: File | undefined) => {
-    if (!file) return;
-    applyScript(file.name, await file.text());
-  };
+  const { job, starting, running, start, cancel } = batchJob;
 
   // The command palette can ask for the importer from another page.
   useEffect(() => {
@@ -204,115 +131,9 @@ export function BatchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intent, consumeIntent]);
 
-  const chooseFolder = async () => {
-    const folder = await pickFolder("Batch output folder");
-    if (folder) {
-      setOutputDir(folder);
-      toast.message("Output folder set", { description: folder });
-    }
-  };
-
-  /* --------------------------------------------------------------- run */
-
-  const start = useCallback(async () => {
-    if (!lines.length) {
-      toast.error("Import a script first");
-      return;
-    }
-    if (!voice) {
-      toast.error("Choose a voice profile");
-      return;
-    }
-    if (!online) {
-      toast.error("Batch rendering needs the Python engine");
-      return;
-    }
-
-    setStarting(true);
-    try {
-      const created = await api.startBatch({
-        voice_id: voice.id,
-        engine_name: engineName,
-        items: lines.map((line) => ({
-          text: line.text,
-          filename: line.filename,
-        })),
-        params: {
-          temperature: 0.7,
-          cfg_weight: 2.5,
-          exaggeration: 1,
-          speed: 1,
-          seed: -1,
-          language: voice.language,
-          enable_watermark: true,
-        },
-        sentence_pause_ms: 250,
-        output_dir: outputDir || null,
-      });
-      setJob(created);
-      toast.message("Batch queued", {
-        description: `${created.total} lines will render one after another.`,
-      });
-    } catch (error) {
-      toast.error("Could not start the batch", {
-        description: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setStarting(false);
-    }
-  }, [engineName, lines, online, outputDir, voice]);
-
-  const cancel = useCallback(async () => {
-    if (!job || !running) return;
-    try {
-      setJob(await api.cancelBatch(job.id));
-      toast.message("Cancelling the batch");
-    } catch (error) {
-      toast.error("Could not cancel", {
-        description: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [job, running]);
-
   useAppActions({
     importScript: () => void importScript(),
   });
-
-  // Poll the server while the queue is alive.
-  useEffect(() => {
-    if (!job || !running) return;
-    const jobId = job.id;
-    let cancelled = false;
-
-    const timer = window.setInterval(async () => {
-      try {
-        const next = await api.getBatch(jobId);
-        if (cancelled) return;
-        setJob(next);
-        if (next.state === "done") {
-          toast.success("Batch complete", {
-            description: `${next.completed} of ${next.total} lines rendered.`,
-          });
-        } else if (next.state === "failed") {
-          toast.error("Batch failed", { description: next.error ?? undefined });
-        }
-      } catch {
-        /* transient poll failure: keep the last known state */
-      }
-    }, 1000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [job?.id, job?.state, running]);
-
-  /* ------------------------------------------------------------- render */
-
-  const activeEngine = useMemo(
-    () => engines.find((engine) => engine.name === engineName) ?? engines[0],
-    [engineName, engines],
-  );
 
   const doneCount = job?.completed ?? 0;
   const failedCount = job?.failed ?? 0;
@@ -358,7 +179,7 @@ export function BatchPage() {
                 Cancel
               </Button>
             ) : (
-              <Button onClick={() => void start()} disabled={!lines.length || starting}>
+              <Button onClick={() => void start(lines, outputDir)} disabled={!lines.length || starting}>
                 {starting ? <Loader2 className="animate-spin" /> : <Play />}
                 Start batch
               </Button>
@@ -457,9 +278,8 @@ export function BatchPage() {
                       size="icon-sm"
                       aria-label="Clear the queue"
                       onClick={() => {
-                        setLines([]);
-                        setFileName("");
-                        setJob(null);
+                        clearScript();
+                        batchJob.reset();
                       }}
                       disabled={running}
                     />

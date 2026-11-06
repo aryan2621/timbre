@@ -4,11 +4,11 @@ Thread-safe SQLite database manager with WAL mode and schema initialization.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from pathlib import Path
 import sqlite3
 import threading
-from typing import Generator, Optional
+from collections.abc import Generator
+from contextlib import contextmanager
+from pathlib import Path
 
 from app.core.logging_setup import get_logger
 from app.core.paths import paths
@@ -81,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_history_created ON history(created_at DESC);
 class DatabaseManager:
     """Manages SQLite database connections, schema updates, and transactions."""
 
-    def __init__(self, db_path: Optional[Path] = None) -> None:
+    def __init__(self, db_path: Path | None = None) -> None:
         self.db_path = db_path or paths.database_path
         self._local = threading.local()
         self._lock = threading.Lock()

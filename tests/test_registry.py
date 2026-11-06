@@ -2,7 +2,6 @@
 Unit tests for TTSEngine Registry and adapter interfaces.
 """
 
-from pathlib import Path
 import unittest
 
 try:

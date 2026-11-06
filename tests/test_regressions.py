@@ -2,12 +2,12 @@
 Regression tests for bugs found in the whole-app audit.
 """
 
-from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
-from unittest import mock
 import urllib.error
+from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -61,10 +61,11 @@ class TestProfileAtomicity(unittest.TestCase):
             db_mod.db_manager = DatabaseManager(Path(d) / "t.db")
             try:
                 repo = VoiceRepository()
-                mk = lambda: VoiceProfile(
-                    name="Same", language="en", consent_confirmed=True,
-                    clips=[VoiceClip(file_path="x.wav", original_filename="x.wav", duration_seconds=1.0, sample_rate=24000)],
-                )
+                def mk() -> VoiceProfile:
+                    return VoiceProfile(
+                        name="Same", language="en", consent_confirmed=True,
+                        clips=[VoiceClip(file_path="x.wav", original_filename="x.wav", duration_seconds=1.0, sample_rate=24000)],
+                    )
                 repo.create_profile(mk())
                 with self.assertRaises(sqlite3.IntegrityError):
                     repo.create_profile(mk())

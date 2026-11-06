@@ -11,11 +11,9 @@ Two playback modes are supported:
 
 from __future__ import annotations
 
+import threading
 from enum import Enum
 from pathlib import Path
-import threading
-import time
-from typing import List, Optional
 
 try:
     import numpy as np
@@ -41,7 +39,7 @@ class AudioPlayer:
         self.state = PlaybackState.STOPPED
         self.volume: float = 1.0  # 0.0 to 1.0
 
-        self._audio_data: Optional[np.ndarray] = None
+        self._audio_data: np.ndarray | None = None
         self._current_sample: int = 0
         self._stream = None
         self._lock = threading.RLock()
@@ -51,7 +49,7 @@ class AudioPlayer:
         # buffered chunk, `_stream_played` counts samples already emitted and
         # `_stream_received` counts samples handed over by the producer.
         self._stream_mode: bool = False
-        self._stream_buffer: List[np.ndarray] = []
+        self._stream_buffer: list[np.ndarray] = []
         self._stream_offset: int = 0
         self._stream_played: int = 0
         self._stream_received: int = 0
@@ -194,7 +192,7 @@ class AudioPlayer:
     # Live streaming API
     # ------------------------------------------------------------------
 
-    def start_stream_mode(self, sample_rate: Optional[int] = None) -> bool:
+    def start_stream_mode(self, sample_rate: int | None = None) -> bool:
         """
         Opens a live output stream that plays audio as it arrives.
 

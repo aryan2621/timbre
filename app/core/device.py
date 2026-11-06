@@ -5,11 +5,9 @@ Provides VRAM queries, torch memory cache clearing, and OOM diagnostic messaging
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-import os
 import platform
-import sys
-from typing import Optional
+from dataclasses import dataclass
+from typing import Any
 
 from app.core.logging_setup import get_logger
 
@@ -27,7 +25,7 @@ class DeviceInfo:
     free_memory_mb: float = 0.0
     supports_fp16: bool = False
     supports_bf16: bool = False
-    warning_message: Optional[str] = None
+    warning_message: str | None = None
 
 
 class DeviceManager:
@@ -35,7 +33,7 @@ class DeviceManager:
 
     def __init__(self) -> None:
         self._torch_available: bool = False
-        self._torch = None
+        self._torch: Any = None
         self._check_torch()
 
     def _check_torch(self) -> None:
@@ -78,7 +76,7 @@ class DeviceManager:
 
         return "cpu"
 
-    def get_device_info(self, active_device_str: Optional[str] = None) -> DeviceInfo:
+    def get_device_info(self, active_device_str: str | None = None) -> DeviceInfo:
         """Inspects the system and returns detailed metrics about the selected or active device."""
         if not self._torch_available or self._torch is None:
             return DeviceInfo(

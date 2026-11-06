@@ -48,12 +48,6 @@ export function formatBytes(bytes: number | null | undefined): string {
   return `${bytes} B`;
 }
 
-export function formatNumber(value: number | null | undefined): string {
-  const safe = safeNumber(value);
-  if (safe === null) return "—";
-  return new Intl.NumberFormat().format(safe);
-}
-
 /** "just now" / "12m ago" / "Nov 4" — relative first, absolute on demand. */
 export function formatRelativeDate(value: string | number | Date): string {
   const date = value instanceof Date ? value : new Date(value);
@@ -85,15 +79,4 @@ export function formatAbsoluteDate(value: string | number | Date): string {
 export function estimateDurationSeconds(words: number, speed = 1): number {
   if (!words) return 0;
   return (words / 150) * 60 / Math.max(0.1, speed);
-}
-
-/** `1.25` -> `1.25x`, `2` -> `2x` — trims trailing zeroes. */
-export function formatMultiplier(value: number): string {
-  return `${Number.parseFloat(value.toFixed(2))}x`;
-}
-
-/** `250` -> `250 ms`, `1500` -> `1.5 s` */
-export function formatMilliseconds(value: number): string {
-  if (value >= 1000) return `${(value / 1000).toFixed(value % 1000 ? 1 : 0)} s`;
-  return `${Math.round(value)} ms`;
 }

@@ -43,64 +43,8 @@ import { useEngineStatus } from "@/lib/engine-status";
 import { mockEngines, mockSettings } from "@/lib/mock";
 import { SHORTCUTS, formatShortcut, type ShortcutGroup } from "@/lib/shortcuts";
 import { useTheme, type Theme } from "@/lib/theme";
+import { useSettings } from "@/hooks/use-settings";
 import type { AppSettings, EngineInfo } from "@/lib/types";
-
-interface Section {
-  id: string;
-  label: string;
-  icon: typeof Monitor;
-  description: string;
-  keys: (keyof AppSettings)[];
-}
-
-const SECTIONS: Section[] = [
-  {
-    id: "appearance",
-    label: "Appearance",
-    icon: Monitor,
-    description: "Theme and provenance defaults.",
-    keys: ["theme", "enable_audio_watermark", "inject_metadata_tag"],
-  },
-  {
-    id: "engine",
-    label: "Engine & hardware",
-    icon: Cpu,
-    description: "Which model runs, and where it runs.",
-    keys: [
-      "default_engine",
-      "device_preference",
-      "use_half_precision",
-      "idle_unload_minutes",
-      "clear_device_cache_after_job",
-    ],
-  },
-  {
-    id: "audio",
-    label: "Audio & quality",
-    icon: AudioLines,
-    description: "Export format and sentence rhythm.",
-    keys: ["default_export_format", "default_sentence_pause_ms", "max_chars_per_chunk"],
-  },
-  {
-    id: "synthesis",
-    label: "Voice defaults",
-    icon: SlidersHorizontal,
-    description: "The baseline every new render starts from.",
-    keys: [
-      "default_temperature",
-      "default_cfg_weight",
-      "default_exaggeration",
-      "default_speed",
-    ],
-  },
-  {
-    id: "diagnostics",
-    label: "Diagnostics & privacy",
-    icon: ScrollText,
-    description: "Log detail and where the data lives.",
-    keys: ["log_level"],
-  },
-];
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   "Navigate",
@@ -108,10 +52,6 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
   "Library",
   "System",
 ];
-
-function themeFromSetting(value: string): Theme {
-  return value === "light" || value === "system" ? value : "dark";
-}
 
 function SettingRow({
   title,
@@ -202,118 +142,26 @@ function SliderSetting({
 export function SettingsPage() {
   const { status: connection } = useEngineStatus();
   const online = connection !== "offline";
-  const { theme, setTheme } = useTheme();
 
-  const [settings, setSettings] = useState<AppSettings>(mockSettings);
-  const [saved, setSaved] = useState<AppSettings>(mockSettings);
-  const [engines, setEngines] = useState<EngineInfo[]>(mockEngines);
-  const [activeSection, setActiveSection] = useState("appearance");
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!online) {
-        if (!cancelled) setLoading(false);
-        return;
-      }
-      try {
-        const [nextSettings, nextEngines] = await Promise.all([
-          api.getSettings(),
-          api.listEngines(),
-        ]);
-        if (cancelled) return;
-        const normalized: AppSettings = {
-          ...nextSettings,
-          theme: themeFromSetting(nextSettings.theme),
-        };
-        setSettings(normalized);
-        setSaved(normalized);
-        setEngines(nextEngines);
-      } catch {
-        /* keep the demo defaults when the sidecar does not answer */
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [online]);
-
-  const update = useCallback(
-    (patch: Partial<AppSettings>) =>
-      setSettings((previous) => ({ ...previous, ...patch })),
-    [],
-  );
-
-  const isSectionDirty = useCallback(
-    (section: Section) =>
-      section.keys.some((key) => settings[key] !== saved[key]),
-    [saved, settings],
-  );
-
-  const resetSection = useCallback(
-    (section: Section) => {
-      setSettings((previous) => {
-        const next = { ...previous };
-        for (const key of section.keys) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (next as any)[key] = saved[key];
-        }
-        return next;
-      });
-      if (section.id === "appearance") setTheme(themeFromSetting(saved.theme));
-      toast.message(`${section.label} reverted`);
-    },
-    [saved, setTheme],
-  );
-
-  const saveSection = useCallback(
-    async (section: Section) => {
-      if (!online) {
-        toast.error("Saving needs the Python engine", {
-          description: "Start the sidecar to persist settings.",
-        });
-        return;
-      }
-      setSaving(true);
-      try {
-        const patch = section.keys.reduce<Partial<AppSettings>>((acc, key) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (acc as any)[key] = settings[key];
-          return acc;
-        }, {});
-        const next = await api.updateSettings(patch);
-        setSettings((previous) => ({ ...previous, ...next }));
-        setSaved((previous) => ({ ...previous, ...next }));
-        toast.success(`${section.label} saved`);
-      } catch (error) {
-        toast.error("Could not save settings", {
-          description: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        setSaving(false);
-      }
-    },
-    [online, settings],
-  );
-
-  const filteredSections = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return SECTIONS;
-    return SECTIONS.filter(
-      (section) =>
-        section.label.toLowerCase().includes(term) ||
-        section.description.toLowerCase().includes(term),
-    );
-  }, [search]);
-
-  const visibleSection = SECTIONS.find((section) => section.id === activeSection);
-  const dirtyCount = SECTIONS.filter((section) => isSectionDirty(section)).length;
+  const {
+    settings,
+    engines,
+    activeSection,
+    setActiveSection,
+    search,
+    setSearch,
+    loading,
+    saving,
+    theme,
+    update,
+    updateTheme,
+    isSectionDirty,
+    resetSection,
+    saveSection,
+    filteredSections,
+    visibleSection,
+    dirtyCount,
+  } = useSettings(online);
 
   return (
     <div className="flex flex-col gap-4">
@@ -503,8 +351,7 @@ export function SettingsPage() {
                           ) {
                             return;
                           }
-                          update({ theme: value });
-                          setTheme(value);
+                          updateTheme(value);
                         }}
                       >
                         <SelectTrigger className="w-40">

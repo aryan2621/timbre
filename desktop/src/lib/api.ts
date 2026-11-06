@@ -1,18 +1,24 @@
-import type {
-  AppSettings,
-  BatchJob,
-  BatchRequestItem,
-  DownloadJob,
-  EngineInfo,
-  HealthDetails,
-  HistoryEntry,
-  JobStatus,
-  ModelInfo,
-  SynthesisParams,
-  VoiceProfile,
-} from "./types";
+/**
+ * Centralized API layer for VoiceClone Studio.
+ *
+ * All frontend components should use this layer instead of calling
+ * the raw fetch API. This ensures a single source of truth for
+ * request shapes, response types, and error handling.
+ *
+ * IPC flow: Frontend -> this module -> Tauri invoke -> Rust command -> Python (HTTP / stdlib)
+ */
 
-export const API_BASE =
+import type { VoiceProfile } from "@/lib/types";
+import type { EngineInfo } from "@/lib/types";
+import type { HistoryEntry } from "@/lib/types";
+import type { ModelInfo } from "@/lib/types";
+import type { DownloadJob } from "@/lib/types";
+import type { AppSettings } from "@/lib/types";
+import type { SynthesisParams } from "@/lib/types";
+import type { JobStatus } from "@/lib/types";
+import type { BatchJob } from "@/lib/types";
+
+const API_BASE =
   import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8756";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -27,6 +33,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** Health check */
 export async function checkHealth(): Promise<boolean> {
   try {
     const controller = new AbortController();
@@ -41,97 +48,200 @@ export async function checkHealth(): Promise<boolean> {
   }
 }
 
-/** Device + engine details shown in the sidebar status block. */
-export async function getHealthDetails(): Promise<HealthDetails | null> {
+/** Fetches an audio blob (export / playback source) with shared error handling. */
+export async function fetchAudioBlob(url: string): Promise<Blob> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Audio fetch failed: ${response.status} ${response.statusText}`);
+  }
+  return response.blob();
+}
+export async function getHealthDetails() {
   try {
-    return await request<HealthDetails>("/api/health");
+    return await request<{
+      ok: boolean;
+      version: string;
+      device: {
+        type: string;
+        name: string;
+        total_memory_mb: number;
+        warning: string | null;
+      };
+      engines: string[];
+      data_dir: string;
+    }>("/api/health");
   } catch {
     return null;
   }
 }
 
+/** Voice profiles */
+export async function listVoices(): Promise<VoiceProfile[]> {
+  return request<VoiceProfile[]>("/api/voices");
+}
+
+export async function createVoice(payload: {
+  name: string;
+  language: string;
+  notes?: string;
+  reference_path?: string;
+  consent_confirmed?: boolean;
+}): Promise<VoiceProfile> {
+  return request<VoiceProfile>("/api/voices", {
+    method: "POST",
+    body: JSON.stringify({ consent_confirmed: true, ...payload }),
+  });
+}
+
+export async function deleteVoice(id: number): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/voices/${id}`, { method: "DELETE" });
+}
+
+/** Engine catalogue */
+export async function listEngines(): Promise<EngineInfo[]> {
+  return request<EngineInfo[]>("/api/engines");
+}
+
+/** History */
+export async function listHistory(query = ""): Promise<HistoryEntry[]> {
+  return request<HistoryEntry[]>(
+    `/api/history${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+  );
+}
+
+export async function getHistoryPeaks(id: number) {
+  return request<{ id: number; peaks: number[]; duration_seconds: number }>(
+    `/api/history/${id}/peaks`,
+  );
+}
+
+export async function deleteHistory(id: number): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/history/${id}`, { method: "DELETE" });
+}
+
+export async function clearHistory(): Promise<{ deleted: number }> {
+  return request<{ deleted: number }>("/api/history", { method: "DELETE" });
+}
+
+/** Models / downloads */
+export async function listModels(): Promise<ModelInfo[]> {
+  return request<ModelInfo[]>("/api/models");
+}
+
+export async function startModelDownload(modelId: string): Promise<DownloadJob> {
+  return request<DownloadJob>(`/api/models/${modelId}/download`, { method: "POST" });
+}
+
+export async function deleteModel(modelId: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/models/${modelId}`, { method: "DELETE" });
+}
+
+export async function getDownload(jobId: string): Promise<DownloadJob> {
+  return request<DownloadJob>(`/api/downloads/${jobId}`);
+}
+
+export async function cancelDownload(jobId: string): Promise<DownloadJob> {
+  return request<DownloadJob>(`/api/downloads/${jobId}/cancel`, { method: "POST" });
+}
+
+/** Settings */
+export async function getSettings(): Promise<AppSettings> {
+  return request<AppSettings>("/api/settings");
+}
+
+export async function updateSettings(
+  settings: Partial<AppSettings>,
+): Promise<AppSettings> {
+  return request<AppSettings>("/api/settings", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+/** Synthesis */
+export async function synthesize(payload: {
+  voice_id: number;
+  engine_name: string;
+  text: string;
+  params: SynthesisParams;
+  sentence_pause_ms: number;
+}): Promise<JobStatus> {
+  return request<JobStatus>("/api/synthesize", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getJob(id: string): Promise<JobStatus> {
+  return request<JobStatus>(`/api/jobs/${id}`);
+}
+
+export async function cancelJob(id: string): Promise<JobStatus> {
+  return request<JobStatus>(`/api/jobs/${id}/cancel`, { method: "POST" });
+}
+
+/** Batch */
+export async function startBatch(payload: {
+  voice_id: number;
+  engine_name: string;
+  items: { text: string; filename: string }[];
+  params: SynthesisParams;
+  sentence_pause_ms: number;
+  output_dir?: string | null;
+}): Promise<BatchJob> {
+  return request<BatchJob>("/api/batch", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getBatch(id: string): Promise<BatchJob> {
+  return request<BatchJob>(`/api/batch/${id}`);
+}
+
+export async function cancelBatch(id: string): Promise<BatchJob> {
+  return request<BatchJob>(`/api/batch/${id}/cancel`, { method: "POST" });
+}
+
+/** URL builders */
+export function audioUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
+export function clipUrl(voiceId: number): string {
+  return `${API_BASE}/api/voices/${voiceId}/clip`;
+}
+
+export function jobAudioUrl(jobId: string): string {
+  return `${API_BASE}/api/jobs/${jobId}/audio`;
+}
+
+/** Export the api object with all functions for easy import */
 export const api = {
-  listVoices: () => request<VoiceProfile[]>("/api/voices"),
-  createVoice: (payload: {
-    name: string;
-    language: string;
-    notes?: string;
-    reference_path?: string;
-    consent_confirmed?: boolean;
-  }) =>
-    request<VoiceProfile>("/api/voices", {
-      method: "POST",
-      body: JSON.stringify({ consent_confirmed: true, ...payload }),
-    }),
-  deleteVoice: (id: number) =>
-    request<{ ok: boolean }>(`/api/voices/${id}`, { method: "DELETE" }),
-
-  listEngines: () => request<EngineInfo[]>("/api/engines"),
-
-  listHistory: (query = "") =>
-    request<HistoryEntry[]>(
-      `/api/history${query ? `?q=${encodeURIComponent(query)}` : ""}`,
-    ),
-  getHistoryPeaks: (id: number) =>
-    request<{ id: number; peaks: number[]; duration_seconds: number }>(
-      `/api/history/${id}/peaks`,
-    ),
-  deleteHistory: (id: number) =>
-    request<{ ok: boolean }>(`/api/history/${id}`, { method: "DELETE" }),
-  clearHistory: () =>
-    request<{ deleted: number }>("/api/history", { method: "DELETE" }),
-
-  listModels: () => request<ModelInfo[]>("/api/models"),
-  startModelDownload: (modelId: string) =>
-    request<DownloadJob>(`/api/models/${modelId}/download`, { method: "POST" }),
-  deleteModel: (modelId: string) =>
-    request<{ ok: boolean }>(`/api/models/${modelId}`, { method: "DELETE" }),
-  getDownload: (jobId: string) =>
-    request<DownloadJob>(`/api/downloads/${jobId}`),
-  cancelDownload: (jobId: string) =>
-    request<DownloadJob>(`/api/downloads/${jobId}/cancel`, { method: "POST" }),
-
-  getSettings: () => request<AppSettings>("/api/settings"),
-  updateSettings: (settings: Partial<AppSettings>) =>
-    request<AppSettings>("/api/settings", {
-      method: "PUT",
-      body: JSON.stringify(settings),
-    }),
-
-  synthesize: (payload: {
-    voice_id: number;
-    engine_name: string;
-    text: string;
-    params: SynthesisParams;
-    sentence_pause_ms: number;
-  }) =>
-    request<JobStatus>("/api/synthesize", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  getJob: (id: string) => request<JobStatus>(`/api/jobs/${id}`),
-  cancelJob: (id: string) =>
-    request<JobStatus>(`/api/jobs/${id}/cancel`, { method: "POST" }),
-
-  startBatch: (payload: {
-    voice_id: number;
-    engine_name: string;
-    items: BatchRequestItem[];
-    params: SynthesisParams;
-    sentence_pause_ms: number;
-    output_dir?: string | null;
-  }) =>
-    request<BatchJob>("/api/batch", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  getBatch: (id: string) => request<BatchJob>(`/api/batch/${id}`),
-  cancelBatch: (id: string) =>
-    request<BatchJob>(`/api/batch/${id}/cancel`, { method: "POST" }),
-
-  audioUrl: (path: string) => `${API_BASE}${path}`,
-  clipUrl: (voiceId: number) => `${API_BASE}/api/voices/${voiceId}/clip`,
-  jobAudioUrl: (jobId: string) => `${API_BASE}/api/jobs/${jobId}/audio`,
+  checkHealth,
+  getHealthDetails,
+  listVoices,
+  createVoice,
+  deleteVoice,
+  listEngines,
+  listHistory,
+  getHistoryPeaks,
+  deleteHistory,
+  clearHistory,
+  listModels,
+  startModelDownload,
+  deleteModel,
+  getDownload,
+  cancelDownload,
+  getSettings,
+  updateSettings,
+  synthesize,
+  getJob,
+  cancelJob,
+  startBatch,
+  getBatch,
+  cancelBatch,
+  audioUrl,
+  clipUrl,
+  jobAudioUrl,
 };

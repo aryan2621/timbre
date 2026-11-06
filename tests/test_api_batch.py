@@ -121,7 +121,7 @@ class _BatchApiTestCase(unittest.TestCase):
             if payload.get("state") in {"done", "failed", "cancelled"}:
                 return payload
             time.sleep(0.05)
-        self.fail(f"batch {job_id} never finished: {payload}")
+        raise AssertionError(f"batch {job_id} never finished: {payload}")
 
 
 class TestBatchFlow(_BatchApiTestCase):

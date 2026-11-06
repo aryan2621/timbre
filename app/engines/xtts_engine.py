@@ -8,20 +8,18 @@ from __future__ import annotations
 
 import importlib.util
 import os
+from collections.abc import Callable
 from pathlib import Path
-import random
-import time
-from typing import Callable, List, Optional, Tuple
+from typing import Any
 
 try:
     import numpy as np
-except ImportError:
-    np = None
+except ImportError:  # pragma: no cover - numpy is a hard requirement in practice
+    np = None  # type: ignore[assignment]
 
 from app.core.config import config_manager
 from app.core.device import device_manager
 from app.core.logging_setup import get_logger
-from app.core.paths import paths
 from app.engines.base import EngineLicense, SynthesisParameters, TTSEngine
 from app.engines.chatterbox_engine import PerthWatermark
 
@@ -33,7 +31,7 @@ class XTTSEngine(TTSEngine):
 
     def __init__(self) -> None:
         self._is_loaded = False
-        self._model = None
+        self._model: Any = None
         self._device = "cpu"
 
     @property
@@ -59,7 +57,7 @@ class XTTSEngine(TTSEngine):
         )
 
     @property
-    def supported_languages(self) -> List[str]:
+    def supported_languages(self) -> list[str]:
         return ["en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh", "ja", "ko", "hu", "hi"]
 
     @property
@@ -90,7 +88,7 @@ class XTTSEngine(TTSEngine):
             enable_watermark=True,
         )
 
-    def load_model(self, progress_callback: Optional[Callable[[float, str], None]] = None) -> bool:
+    def load_model(self, progress_callback: Callable[[float, str], None] | None = None) -> bool:
         if self._is_loaded:
             return True
 
@@ -137,7 +135,7 @@ class XTTSEngine(TTSEngine):
         text: str,
         reference_audio_path: str | Path,
         params: SynthesisParameters,
-    ) -> Tuple[np.ndarray, int]:
+    ) -> tuple[np.ndarray, int]:
         if not self._is_loaded:
             self.load_model()
 
@@ -184,6 +182,6 @@ class XTTSEngine(TTSEngine):
         text: str,
         reference_audio_path: str | Path,
         params: SynthesisParameters,
-    ) -> Tuple[np.ndarray, int]:
+    ) -> tuple[np.ndarray, int]:
         """Synthesize a single chunk for streaming playback."""
         return self.clone_and_synthesize(text, reference_audio_path, params)

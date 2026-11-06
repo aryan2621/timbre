@@ -5,7 +5,6 @@ Engine registry for discovery, listing, and lifecycle management of TTS engines.
 from __future__ import annotations
 
 import threading
-from typing import Dict, List, Optional
 
 from app.core.logging_setup import get_logger
 from app.engines.base import TTSEngine
@@ -17,7 +16,7 @@ class EngineRegistry:
     """Thread-safe registry of all pluggable TTS engines."""
 
     def __init__(self) -> None:
-        self._engines: Dict[str, TTSEngine] = {}
+        self._engines: dict[str, TTSEngine] = {}
         self._lock = threading.Lock()
         self._register_default_engines()
 
@@ -37,17 +36,17 @@ class EngineRegistry:
             self._engines[engine.name] = engine
             logger.info("Registered TTS engine: %s (%s)", engine.name, engine.license_info.name)
 
-    def get_engine(self, name: str) -> Optional[TTSEngine]:
+    def get_engine(self, name: str) -> TTSEngine | None:
         """Retrieves an engine by exact name."""
         with self._lock:
             return self._engines.get(name)
 
-    def list_engine_names(self) -> List[str]:
+    def list_engine_names(self) -> list[str]:
         """Returns the list of names of all registered engines."""
         with self._lock:
             return list(self._engines.keys())
 
-    def get_all_engines(self) -> List[TTSEngine]:
+    def get_all_engines(self) -> list[TTSEngine]:
         """Returns all registered engine instances."""
         with self._lock:
             return list(self._engines.values())

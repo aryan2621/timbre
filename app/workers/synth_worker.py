@@ -5,9 +5,8 @@ crossfade audio stitching, progress reporting, and cancellation.
 
 from __future__ import annotations
 
-from pathlib import Path
 import time
-from typing import List, Optional
+from pathlib import Path
 
 try:
     import numpy as np
@@ -58,8 +57,8 @@ class SynthesisWorker(QThread):
         reference_audio_path: str | Path,
         params: SynthesisParameters,
         sentence_pause_ms: int = 250,
-        parent: Optional[QObject] = None,
-        preview_dir: Optional[Path] = None,
+        parent: QObject | None = None,
+        preview_dir: Path | None = None,
         streaming: bool = True,
     ) -> None:
         super().__init__(parent)
@@ -96,7 +95,7 @@ class SynthesisWorker(QThread):
 
             # Chunk text into sentence-aware blocks. Smaller chunks render
             # faster and start playing sooner; see AppConfig.max_chars_per_chunk.
-            chunks: List[str] = TextChunker.chunk_text(
+            chunks: list[str] = TextChunker.chunk_text(
                 self.text,
                 max_chars_per_chunk=config_manager.config.max_chars_per_chunk,
             )
@@ -107,9 +106,9 @@ class SynthesisWorker(QThread):
             total_chunks = len(chunks)
             logger.info("Starting synthesis for %d text chunks.", total_chunks)
 
-            rendered_audio_chunks: List[np.ndarray] = []
+            rendered_audio_chunks: list[np.ndarray] = []
             chunk_sample_rate = self.engine.native_sample_rate
-            chunk_times: List[float] = []
+            chunk_times: list[float] = []
             emitted_any = False
 
             for idx, chunk_text in enumerate(chunks):
@@ -246,7 +245,7 @@ class SynthesisWorker(QThread):
 
     @staticmethod
     def _stitch_chunks_with_crossfade(
-        chunks: List[np.ndarray],
+        chunks: list[np.ndarray],
         sample_rate: int,
         pause_ms: int = 250,
         crossfade_ms: int = 40,
@@ -255,7 +254,7 @@ class SynthesisWorker(QThread):
         Stitches audio chunks with a natural pause and smooth linear crossfades
         to eliminate phase discontinuities and clicks.
         """
-        prepared: List[np.ndarray] = []
+        prepared: list[np.ndarray] = []
         for chunk in chunks:
             if len(chunk) == 0:
                 continue

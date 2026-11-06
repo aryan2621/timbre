@@ -293,7 +293,7 @@ export function VoicesPage() {
             </Field>
             <Field>
               <FieldLabel>Language</FieldLabel>
-              <Select value={form.language} onValueChange={v => setForm(p => ({ ...p, language: v }))}>
+              <Select value={form.language} onValueChange={v => v && setForm(p => ({ ...p, language: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{languages.map(l => <SelectItem key={l} value={l}>{l.toUpperCase()}</SelectItem>)}</SelectContent>
               </Select>

@@ -6,13 +6,9 @@ Enforces consent timestamping and profile integrity.
 from __future__ import annotations
 
 import os
-from pathlib import Path
-import shutil
-from typing import List, Optional
 
-from app.core.logging_setup import get_logger
-from app.core.paths import paths
 import app.data.database as db_mod
+from app.core.logging_setup import get_logger
 from app.data.models import VoiceClip, VoiceProfile, utc_now_iso
 
 logger = get_logger("voice_repo")
@@ -55,16 +51,18 @@ class VoiceRepository:
                     profile.updated_at,
                 ),
             )
-            profile.id = cursor.lastrowid
+            new_id = cursor.lastrowid
+            assert new_id is not None, "INSERT did not return a row id"
+            profile.id = new_id
 
             # Same transaction as the profile row: no orphan profile if a clip insert fails.
             for clip in profile.clips or []:
-                self._insert_clip(cursor, profile.id, clip)
+                self._insert_clip(cursor, new_id, clip)
 
-        logger.info("Created voice profile '%s' (ID: %s)", profile.name, profile.id)
-        return self.get_profile_by_id(profile.id) or profile
+        logger.info("Created voice profile '%s' (ID: %s)", profile.name, new_id)
+        return self.get_profile_by_id(new_id) or profile
 
-    def get_profile_by_id(self, profile_id: int) -> Optional[VoiceProfile]:
+    def get_profile_by_id(self, profile_id: int) -> VoiceProfile | None:
         """Fetches a voice profile by its unique database ID, including its clips."""
         with db_mod.db_manager.get_cursor() as cursor:
             cursor.execute(
@@ -109,7 +107,7 @@ class VoiceRepository:
 
             return profile
 
-    def get_profile_by_name(self, name: str) -> Optional[VoiceProfile]:
+    def get_profile_by_name(self, name: str) -> VoiceProfile | None:
         """Fetches a voice profile by its exact display name."""
         with db_mod.db_manager.get_cursor() as cursor:
             cursor.execute(
@@ -121,13 +119,13 @@ class VoiceRepository:
                 return self.get_profile_by_id(row["id"])
         return None
 
-    def list_all_profiles(self) -> List[VoiceProfile]:
+    def list_all_profiles(self) -> list[VoiceProfile]:
         """Returns all configured voice profiles sorted by name."""
         with db_mod.db_manager.get_cursor() as cursor:
             cursor.execute("SELECT id FROM voice_profiles ORDER BY name ASC")
             rows = cursor.fetchall()
 
-        profiles: List[VoiceProfile] = []
+        profiles: list[VoiceProfile] = []
         for row in rows:
             p = self.get_profile_by_id(row["id"])
             if p:

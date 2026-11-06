@@ -53,16 +53,17 @@ import { PageHeader, StatChip } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MiniWaveform } from "@/components/history/mini-waveform";
-import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
-import { downloadBlob, IS_TAURI, pickSavePath, writeBlobToPath } from "@/lib/desktop";
 import { useEngineStatus } from "@/lib/engine-status";
 import {
   formatAbsoluteDate,
   formatDuration,
   formatRelativeDate,
 } from "@/lib/format";
-import { mockHistory } from "@/lib/mock";
+import {
+  useHistoryEntries,
+  useHistoryPlayback,
+} from "@/hooks/use-history";
 import type { HistoryEntry } from "@/lib/types";
 
 const columnHelper = legacyCreateColumnHelper<HistoryEntry>();
@@ -82,171 +83,27 @@ export function HistoryPage() {
   const online = connection !== "offline";
   const { navigate } = useApp();
 
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "created_at", desc: true }]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [playingId, setPlayingId] = useState<number | null>(null);
-  const [progress, setProgress] = useState<Record<number, number>>({});
-  const [peaksById, setPeaksById] = useState<Record<number, number[]>>({});
-  const [pendingDelete, setPendingDelete] = useState<HistoryEntry | null>(null);
-  const [confirmClear, setConfirmClear] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!online) {
-        if (!cancelled) {
-          setEntries(mockHistory);
-          setLoading(false);
-        }
-        return;
-      }
-      try {
-        const next = await api.listHistory();
-        if (!cancelled) setEntries(next);
-      } catch {
-        if (!cancelled) setEntries(mockHistory);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [online]);
+  const {
+    entries,
+    loading,
+    pendingDelete,
+    setPendingDelete,
+    confirmClear,
+    setConfirmClear,
+    remove,
+    clearAll,
+  } = useHistoryEntries(online, () => setRowSelection({}));
 
-  useEffect(
-    () => () => {
-      audioRef.current?.pause();
-    },
-    [],
-  );
-
-  /* ------------------------------------------------------------ playback */
-
-  const preview = useCallback(
-    (entry: HistoryEntry) => {
-      if (!online) {
-        toast.error("Playback needs the Python engine");
-        return;
-      }
-      if (playingId === entry.id) {
-        audioRef.current?.pause();
-        setPlayingId(null);
-        return;
-      }
-      audioRef.current?.pause();
-      const audio = new Audio(api.audioUrl(`/api/history/${entry.id}/audio`));
-      audio.ontimeupdate = () => {
-        const duration = audio.duration || entry.duration_seconds || 1;
-        setProgress((previous) => ({
-          ...previous,
-          [entry.id]: audio.currentTime / duration,
-        }));
-      };
-      audio.onended = () => {
-        setPlayingId(null);
-        setProgress((previous) => ({ ...previous, [entry.id]: 0 }));
-      };
-      audio.onerror = () => {
-        setPlayingId(null);
-        toast.error("The rendered file is missing");
-      };
-      audioRef.current = audio;
-      void audio
-        .play()
-        .then(() => setPlayingId(entry.id))
-        .catch(() => toast.error("Playback failed"));
-    },
-    [online, playingId],
-  );
-
-  /** Loads the waveform of a take the first time its row becomes visible. */
-  const ensurePeaks = useCallback(
-    (entryId: number) => {
-      if (peaksById[entryId] || !online) return;
-      void api
-        .getHistoryPeaks(entryId)
-        .then((result) => {
-          setPeaksById((previous) => ({
-            ...previous,
-            [entryId]: result.peaks ?? [],
-          }));
-        })
-        .catch(() => {
-          /* a take without a waveform still renders a placeholder strip */
-        });
-    },
-    [online, peaksById],
-  );
+  const { playingId, progress, peaksById, preview, ensurePeaks, exportEntry } =
+    useHistoryPlayback(online);
 
   /* ------------------------------------------------------------- actions */
-
-  const exportEntry = useCallback(
-    async (entry: HistoryEntry) => {
-      try {
-        const response = await fetch(api.audioUrl(`/api/history/${entry.id}/audio`));
-        const blob = await response.blob();
-        const filename = `${entry.voice_name || "voiceclone"}-${entry.id}.wav`;
-        if (IS_TAURI) {
-          const path = await pickSavePath(filename, "wav");
-          if (!path) return;
-          if (await writeBlobToPath(path, blob)) {
-            toast.success("Export saved", { description: path });
-            return;
-          }
-        }
-        downloadBlob(blob, filename);
-        toast.success("Export started", { description: filename });
-      } catch {
-        toast.error("Export failed");
-      }
-    },
-    [],
-  );
-
-  const remove = useCallback(async () => {
-    const entry = pendingDelete;
-    setPendingDelete(null);
-    if (!entry) return;
-    if (!online) {
-      setEntries((previous) => previous.filter((item) => item.id !== entry.id));
-      return;
-    }
-    try {
-      await api.deleteHistory(entry.id);
-      setEntries((previous) => previous.filter((item) => item.id !== entry.id));
-      toast.success("History entry deleted");
-    } catch (error) {
-      toast.error("Delete failed", {
-        description: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [online, pendingDelete]);
-
-  const clearAll = useCallback(async () => {
-    setConfirmClear(false);
-    if (!online) {
-      setEntries([]);
-      return;
-    }
-    try {
-      const result = await api.clearHistory();
-      setEntries([]);
-      setRowSelection({});
-      toast.success(`Cleared ${result.deleted} entries`);
-    } catch (error) {
-      toast.error("Could not clear history", {
-        description: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [online]);
 
   const reuseScript = useCallback(
     (entry: HistoryEntry) => {
@@ -260,6 +117,8 @@ export function HistoryPage() {
 
   /* --------------------------------------------------------------- table */
 
+  // TanStack's column helper requires the `any` value generic here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const columns = useMemo<LegacyColumnDef<HistoryEntry, any>[]>(
     () => [
       columnHelper.display({

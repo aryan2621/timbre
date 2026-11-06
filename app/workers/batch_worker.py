@@ -5,10 +5,9 @@ Background batch processor for bulk synthesis from .txt, .csv, and .srt files.
 from __future__ import annotations
 
 import csv
-from pathlib import Path
 import re
 import time
-from typing import List, Optional
+from pathlib import Path
 
 try:
     import numpy as np
@@ -19,12 +18,20 @@ try:
     from PySide6.QtCore import QObject, QThread, Signal  # type: ignore
 except ImportError:
     class Signal:
-        def __init__(self, *args): pass
-        def emit(self, *args): pass
-    class QObject: pass
+        def __init__(self, *args):
+            pass
+
+        def emit(self, *args):
+            pass
+    class QObject:
+        pass
+
     class QThread:
-        def start(self): pass
-        def wait(self): pass
+        def start(self):
+            pass
+
+        def wait(self):
+            pass
 
 from app.audio.export import AudioExporter
 from app.core.logging_setup import get_logger
@@ -47,12 +54,12 @@ class BatchWorker(QThread):
     def __init__(
         self,
         engine: TTSEngine,
-        jobs: List[BatchJob],
+        jobs: list[BatchJob],
         reference_audio_path: str | Path,
         params: SynthesisParameters,
         output_directory: Path,
         export_format: str = "wav",
-        parent: Optional[QObject] = None,
+        parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self.engine = engine
@@ -109,7 +116,6 @@ class BatchWorker(QThread):
             self.item_started.emit(idx, job.output_filename)
 
             try:
-                start_time = time.time()
                 with self.engine.lock:
                     audio, sr = self.engine.clone_and_synthesize(
                         text=job.text,
@@ -148,13 +154,13 @@ class BatchWorker(QThread):
             self.batch_progress.emit(completed, total, percent)
 
     @staticmethod
-    def parse_file(file_path: Path) -> List[BatchJob]:
+    def parse_file(file_path: Path) -> list[BatchJob]:
         """Parses .txt, .csv, or .srt subtitle files into a list of BatchJob objects."""
         suffix = file_path.suffix.lower()
-        jobs: List[BatchJob] = []
+        jobs: list[BatchJob] = []
 
         if suffix == ".txt":
-            with open(file_path, "r", encoding="utf-8-sig") as f:
+            with open(file_path, encoding="utf-8-sig") as f:
                 lines = [line.strip() for line in f if line.strip()]
             for i, line in enumerate(lines, 1):
                 jobs.append(BatchJob(
@@ -164,7 +170,7 @@ class BatchWorker(QThread):
                 ))
 
         elif suffix == ".csv":
-            with open(file_path, "r", encoding="utf-8-sig") as f:
+            with open(file_path, encoding="utf-8-sig") as f:
                 row_idx = 1
                 for n, row in enumerate(csv.reader(f)):
                     if not row:
@@ -183,14 +189,14 @@ class BatchWorker(QThread):
                     row_idx += 1
 
         elif suffix == ".srt":
-            with open(file_path, "r", encoding="utf-8-sig") as f:
+            with open(file_path, encoding="utf-8-sig") as f:
                 content = f.read()
             # Simple SRT regex: block index, timestamp, subtitle text
             blocks = re.split(r"\n\s*\n", content.strip())
             for i, block in enumerate(blocks, 1):
-                lines = [l.strip() for l in block.splitlines() if l.strip()]
+                lines = [row.strip() for row in block.splitlines() if row.strip()]
                 # Skip numeric index line and timestamp line
-                text_lines = [l for l in lines if not l.isdigit() and "-->" not in l]
+                text_lines = [row for row in lines if not row.isdigit() and "-->" not in row]
                 if text_lines:
                     combined_text = " ".join(text_lines)
                     jobs.append(BatchJob(

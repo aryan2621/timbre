@@ -4,16 +4,17 @@ Abstract base class and parameter contracts for all pluggable zero-shot TTS engi
 
 from __future__ import annotations
 
+import threading
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-import threading
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 try:
     import numpy as np
-except ImportError:
-    np = None
+except ImportError:  # pragma: no cover - numpy is a hard requirement in practice
+    np = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -40,7 +41,7 @@ class SynthesisParameters:
     repetition_penalty: float = 2.0
     language: str = "en"
     enable_watermark: bool = True
-    extra_params: Dict[str, Any] = field(default_factory=dict)
+    extra_params: dict[str, Any] = field(default_factory=dict)
 
 
 class TTSEngine(ABC):
@@ -70,7 +71,7 @@ class TTSEngine(ABC):
 
     @property
     @abstractmethod
-    def supported_languages(self) -> List[str]:
+    def supported_languages(self) -> list[str]:
         """List of ISO language codes supported by this engine."""
         pass
 
@@ -97,7 +98,7 @@ class TTSEngine(ABC):
         pass
 
     @abstractmethod
-    def load_model(self, progress_callback: Optional[Callable[[float, str], None]] = None) -> bool:
+    def load_model(self, progress_callback: Callable[[float, str], None] | None = None) -> bool:
         """
         Loads the model weights into device memory.
         progress_callback receives (percent_0_to_100, status_message).
@@ -115,7 +116,7 @@ class TTSEngine(ABC):
         text: str,
         reference_audio_path: str | Path,
         params: SynthesisParameters,
-    ) -> Tuple[np.ndarray, int]:
+    ) -> tuple[np.ndarray, int]:
         """
         Synthesizes speech for the provided text in the voice of the reference audio.
         Returns:
@@ -128,7 +129,7 @@ class TTSEngine(ABC):
         text: str,
         reference_audio_path: str | Path,
         params: SynthesisParameters,
-    ) -> Tuple[np.ndarray, int]:
+    ) -> tuple[np.ndarray, int]:
         """
         Synthesizes a single text chunk for streaming playback.
 
@@ -151,7 +152,7 @@ class TTSEngine(ABC):
         source_audio_path: str | Path,
         target_reference_path: str | Path,
         params: SynthesisParameters,
-    ) -> Tuple[np.ndarray, int]:
+    ) -> tuple[np.ndarray, int]:
         """
         Converts the vocal timbre of source_audio into target_reference voice.
         Default implementation raises NotImplementedError if unsupported.
