@@ -56,7 +56,6 @@ class VoiceProfile:
     consent_timestamp: str | None = None
     created_at: str = field(default_factory=utc_now_iso)
     updated_at: str = field(default_factory=utc_now_iso)
-    active_clip_id: int | None = None
     clips: list[VoiceClip] = field(default_factory=list)
 
     @property
@@ -107,28 +106,6 @@ class ModelMetadata:
     license_name: str
     commercial_allowed: bool
     license_notice: str
-    download_url: str
-    expected_sha256: str
     total_bytes: int
     local_dir: str
-    min_ram_gb: int = 8
-    recommended: bool = False
     files: list[ModelFile] = field(default_factory=list)
-    is_downloaded: bool = False
-    download_progress: float = 0.0
-
-
-@dataclass
-class BatchJob:
-    """Individual item in a batch synthesis queue."""
-
-    id: int | None = None
-    item_index: int = 0
-    text: str = ""
-    output_filename: str = ""
-    output_path: str = ""
-    voice_id: int | None = None
-    engine_name: str = ""
-    status: str = "pending"  # "pending", "running", "done", "failed"
-    error_message: str | None = None
-    duration_seconds: float = 0.0

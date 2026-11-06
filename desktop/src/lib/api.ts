@@ -102,11 +102,11 @@ export async function getHealthDetails() {
 }
 
 /** Voice profiles */
-export async function listVoices(): Promise<VoiceProfile[]> {
+async function listVoices(): Promise<VoiceProfile[]> {
   return request<VoiceProfile[]>("/api/voices");
 }
 
-export async function createVoice(payload: {
+async function createVoice(payload: {
   name: string;
   language: string;
   notes?: string;
@@ -119,63 +119,63 @@ export async function createVoice(payload: {
   });
 }
 
-export async function deleteVoice(id: number): Promise<{ ok: boolean }> {
+async function deleteVoice(id: number): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>(`/api/voices/${id}`, { method: "DELETE" });
 }
 
 /** Engine catalogue */
-export async function listEngines(): Promise<EngineInfo[]> {
+async function listEngines(): Promise<EngineInfo[]> {
   return request<EngineInfo[]>("/api/engines");
 }
 
 /** History */
-export async function listHistory(query = ""): Promise<HistoryEntry[]> {
+async function listHistory(query = ""): Promise<HistoryEntry[]> {
   return request<HistoryEntry[]>(
     `/api/history${query ? `?q=${encodeURIComponent(query)}` : ""}`,
   );
 }
 
-export async function getHistoryPeaks(id: number) {
+async function getHistoryPeaks(id: number) {
   return request<{ id: number; peaks: number[]; duration_seconds: number }>(
     `/api/history/${id}/peaks`,
   );
 }
 
-export async function deleteHistory(id: number): Promise<{ ok: boolean }> {
+async function deleteHistory(id: number): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>(`/api/history/${id}`, { method: "DELETE" });
 }
 
-export async function clearHistory(): Promise<{ deleted: number }> {
+async function clearHistory(): Promise<{ deleted: number }> {
   return request<{ deleted: number }>("/api/history", { method: "DELETE" });
 }
 
 /** Models / downloads */
-export async function listModels(): Promise<ModelInfo[]> {
+async function listModels(): Promise<ModelInfo[]> {
   return request<ModelInfo[]>("/api/models");
 }
 
-export async function startModelDownload(modelId: string): Promise<DownloadJob> {
+async function startModelDownload(modelId: string): Promise<DownloadJob> {
   return request<DownloadJob>(`/api/models/${modelId}/download`, { method: "POST" });
 }
 
-export async function deleteModel(modelId: string): Promise<{ ok: boolean }> {
+async function deleteModel(modelId: string): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>(`/api/models/${modelId}`, { method: "DELETE" });
 }
 
-export async function getDownload(jobId: string): Promise<DownloadJob> {
+async function getDownload(jobId: string): Promise<DownloadJob> {
   return request<DownloadJob>(`/api/downloads/${jobId}`);
 }
 
-export async function cancelDownload(jobId: string): Promise<DownloadJob> {
+async function cancelDownload(jobId: string): Promise<DownloadJob> {
   return request<DownloadJob>(`/api/downloads/${jobId}/cancel`, { method: "POST" });
 }
 
 /** Settings */
-export async function getSettings(): Promise<AppSettings> {
+async function getSettings(): Promise<AppSettings> {
   return request<AppSettings>("/api/settings");
 }
 
-export async function updateSettings(
+async function updateSettings(
   settings: Partial<AppSettings>,
 ): Promise<AppSettings> {
   return request<AppSettings>("/api/settings", {
@@ -185,7 +185,7 @@ export async function updateSettings(
 }
 
 /** Synthesis */
-export async function synthesize(payload: {
+async function synthesize(payload: {
   voice_id: number;
   engine_name: string;
   text: string;
@@ -198,16 +198,16 @@ export async function synthesize(payload: {
   });
 }
 
-export async function getJob(id: string): Promise<JobStatus> {
+async function getJob(id: string): Promise<JobStatus> {
   return request<JobStatus>(`/api/jobs/${id}`);
 }
 
-export async function cancelJob(id: string): Promise<JobStatus> {
+async function cancelJob(id: string): Promise<JobStatus> {
   return request<JobStatus>(`/api/jobs/${id}/cancel`, { method: "POST" });
 }
 
 /** Batch */
-export async function startBatch(payload: {
+async function startBatch(payload: {
   voice_id: number;
   engine_name: string;
   items: { text: string; filename: string }[];
@@ -221,16 +221,16 @@ export async function startBatch(payload: {
   });
 }
 
-export async function getBatch(id: string): Promise<BatchJob> {
+async function getBatch(id: string): Promise<BatchJob> {
   return request<BatchJob>(`/api/batch/${id}`);
 }
 
-export async function cancelBatch(id: string): Promise<BatchJob> {
+async function cancelBatch(id: string): Promise<BatchJob> {
   return request<BatchJob>(`/api/batch/${id}/cancel`, { method: "POST" });
 }
 
 /** One finished chunk of a running render, as WAV bytes. */
-export async function getJobChunk(jobId: string, index: number): Promise<ArrayBuffer> {
+async function getJobChunk(jobId: string, index: number): Promise<ArrayBuffer> {
   await tokenReady;
   const response = await fetch(`${API_BASE}/api/jobs/${jobId}/chunks/${index}`, {
     headers: { "X-VoiceClone-Token": apiToken },
@@ -240,15 +240,15 @@ export async function getJobChunk(jobId: string, index: number): Promise<ArrayBu
 }
 
 /** URL builders */
-export function audioUrl(path: string): string {
+function audioUrl(path: string): string {
   return withToken(`${API_BASE}${path}`);
 }
 
-export function clipUrl(voiceId: number): string {
+function clipUrl(voiceId: number): string {
   return withToken(`${API_BASE}/api/voices/${voiceId}/clip`);
 }
 
-export function jobAudioUrl(jobId: string): string {
+function jobAudioUrl(jobId: string): string {
   return withToken(`${API_BASE}/api/jobs/${jobId}/audio`);
 }
 

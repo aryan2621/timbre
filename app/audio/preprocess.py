@@ -71,7 +71,6 @@ class AudioPreprocessor:
         audio: np.ndarray,
         sample_rate: int,
         threshold_db: float = -40.0,
-        min_silence_duration_ms: int = 150,
         padding_ms: int = 100,
     ) -> np.ndarray:
         """

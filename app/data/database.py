@@ -59,20 +59,6 @@ CREATE TABLE IF NOT EXISTS history (
     FOREIGN KEY(voice_id) REFERENCES voice_profiles(id) ON DELETE SET NULL
 );
 
-CREATE TABLE IF NOT EXISTS model_catalog (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    version TEXT NOT NULL,
-    license_name TEXT NOT NULL,
-    commercial_allowed INTEGER NOT NULL DEFAULT 0,
-    license_notice TEXT NOT NULL,
-    download_url TEXT NOT NULL,
-    expected_sha256 TEXT NOT NULL,
-    total_bytes INTEGER NOT NULL DEFAULT 0,
-    local_dir TEXT NOT NULL,
-    is_downloaded INTEGER NOT NULL DEFAULT 0
-);
-
 CREATE INDEX IF NOT EXISTS idx_voice_clips_profile ON voice_clips(profile_id);
 CREATE INDEX IF NOT EXISTS idx_history_created ON history(created_at DESC);
 """

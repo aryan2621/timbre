@@ -79,7 +79,6 @@ class TextChunker:
         cls,
         text: str,
         max_chars_per_chunk: int = 240,
-        min_chars_per_chunk: int = 30,
     ) -> list[str]:
         """
         Groups sentences into coherent chunks that fit comfortably within engine limits.

@@ -47,7 +47,6 @@ class F5Engine(TTSEngine):
             url="https://opensource.org/licenses/MIT",
             commercial_permitted=True,
             notice="F5-TTS is released under the MIT License and permits commercial and non-commercial local use.",
-            requires_consent_warning=True,
         )
 
     @property

@@ -44,7 +44,6 @@ class AppPaths:
                 self.models_dir,
                 self.voices_dir,
                 self.history_dir,
-                self.exports_dir,
                 self.temp_dir,
             ]:
                 path.mkdir(parents=True, exist_ok=True)
@@ -64,7 +63,6 @@ class AppPaths:
                 self.models_dir,
                 self.voices_dir,
                 self.history_dir,
-                self.exports_dir,
                 self.temp_dir,
             ]:
                 path.mkdir(parents=True, exist_ok=True)
@@ -103,11 +101,6 @@ class AppPaths:
     def history_dir(self) -> Path:
         """Directory for rendered synthesis history audio files."""
         return self._user_data_dir / "history_audio"
-
-    @property
-    def exports_dir(self) -> Path:
-        """Default directory for exported audio files."""
-        return self._user_data_dir / "exports"
 
     @property
     def temp_dir(self) -> Path:

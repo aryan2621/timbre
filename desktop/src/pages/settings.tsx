@@ -134,7 +134,6 @@ export function SettingsPage() {
 
   const {
     settings,
-    engines,
     activeSection,
     setActiveSection,
     search,
@@ -361,70 +360,11 @@ export function SettingsPage() {
                         </SelectContent>
                       </Select>
                     </SettingRow>
-
-                    <SettingRow
-                      title="Audio watermark"
-                      description="Embed Perth provenance in every rendered clip."
-                    >
-                      <Switch
-                        checked={settings.enable_audio_watermark}
-                        aria-label="Toggle the audio watermark"
-                        onCheckedChange={(checked) =>
-                          update({ enable_audio_watermark: checked })
-                        }
-                      />
-                    </SettingRow>
-
-                    <SettingRow
-                      title="AI metadata tag"
-                      description="Write an “AI-generated voice” tag into exported files."
-                    >
-                      <Switch
-                        checked={settings.inject_metadata_tag}
-                        aria-label="Toggle the AI metadata tag"
-                        onCheckedChange={(checked) =>
-                          update({ inject_metadata_tag: checked })
-                        }
-                      />
-                    </SettingRow>
                   </>
                 ) : null}
 
                 {activeSection === "engine" ? (
                   <>
-                    <SettingRow
-                      title="Default voice model"
-                      description="Preferred AI model loaded when starting new speech takes."
-                    >
-                      <Select
-                        value={settings.default_engine}
-                        onValueChange={(value) =>
-                          value && update({ default_engine: value })
-                        }
-                      >
-                        <SelectTrigger className="w-52">
-                          <SelectValue placeholder="Select engine" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {engines.map((engine) => (
-                            <SelectItem
-                              key={engine.name}
-                              value={engine.name}
-                              disabled={!engine.is_available}
-                            >
-                              {engine.name}
-                              {!engine.is_available ? (
-                                <span className="text-muted-foreground">
-                                  {" "}
-                                  · not installed
-                                </span>
-                              ) : null}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </SettingRow>
-
                     <SettingRow
                       title="Hardware accelerator"
                       description="Auto picks your graphics card (Apple Silicon MPS / NVIDIA CUDA) for maximum speed."
@@ -455,19 +395,6 @@ export function SettingsPage() {
                     </SettingRow>
 
                     <SettingRow
-                      title="Half precision (FP16)"
-                      description="Halves memory usage and accelerates generation with identical sound fidelity."
-                    >
-                      <Switch
-                        checked={settings.use_half_precision}
-                        aria-label="Toggle half precision mode"
-                        onCheckedChange={(checked) =>
-                          update({ use_half_precision: checked })
-                        }
-                      />
-                    </SettingRow>
-
-                    <SettingRow
                       title="Clear the device cache after a job"
                       description="Frees graphics memory as soon as a render finishes."
                     >
@@ -479,61 +406,11 @@ export function SettingsPage() {
                         }
                       />
                     </SettingRow>
-
-                    <SliderSetting
-                      label="Auto-free memory when inactive"
-                      description="Releases models from graphics memory after inactivity (0 keeps them ready in RAM)."
-                      value={settings.idle_unload_minutes}
-                      min={0}
-                      max={180}
-                      step={5}
-                      suffix="min"
-                      digits={0}
-                      onChange={(value) => update({ idle_unload_minutes: value })}
-                    />
                   </>
                 ) : null}
 
                 {activeSection === "audio" ? (
                   <>
-                    <SettingRow
-                      title="Preferred export format"
-                      description="Lossless WAV is recommended for master audio. MP3 and OGG require ffmpeg."
-                    >
-                      <Select
-                        value={settings.default_export_format}
-                        onValueChange={(value) =>
-                          value && update({ default_export_format: value })
-                        }
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue>
-                            {(value) => String(value ?? "wav").toUpperCase()}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="wav">WAV</SelectItem>
-                          <SelectItem value="flac">FLAC</SelectItem>
-                          <SelectItem value="mp3">MP3</SelectItem>
-                          <SelectItem value="ogg">OGG</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </SettingRow>
-
-                    <SliderSetting
-                      label="Default pause between sentences"
-                      description="Natural breathing silence inserted between stitched sentences."
-                      value={settings.default_sentence_pause_ms}
-                      min={0}
-                      max={1500}
-                      step={50}
-                      suffix="ms"
-                      digits={0}
-                      onChange={(value) =>
-                        update({ default_sentence_pause_ms: value })
-                      }
-                    />
-
                     <SliderSetting
                       label="Maximum characters per chunk"
                       description="Longer chunks are more efficient; shorter chunks follow the sentence breaks more closely."
@@ -544,49 +421,6 @@ export function SettingsPage() {
                       suffix="chars"
                       digits={0}
                       onChange={(value) => update({ max_chars_per_chunk: value })}
-                    />
-                  </>
-                ) : null}
-
-                {activeSection === "synthesis" ? (
-                  <>
-                    <SliderSetting
-                      label="Vocal variation"
-                      description="Lower sounds steady and consistent; higher adds lively natural variety."
-                      value={settings.default_temperature}
-                      min={0.1}
-                      max={1.5}
-                      step={0.05}
-                      onChange={(value) => update({ default_temperature: value })}
-                    />
-                    <SliderSetting
-                      label="Voice resemblance (CFG match)"
-                      description="How strictly the speech mirrors the reference speaker's vocal tone."
-                      value={settings.default_cfg_weight}
-                      min={1}
-                      max={7}
-                      step={0.1}
-                      onChange={(value) => update({ default_cfg_weight: value })}
-                    />
-                    <SliderSetting
-                      label="Emotion & expressiveness"
-                      description="Amplifies emotional warmth and dramatic vocal inflection."
-                      value={settings.default_exaggeration}
-                      min={0.2}
-                      max={2}
-                      step={0.05}
-                      suffix="x"
-                      onChange={(value) => update({ default_exaggeration: value })}
-                    />
-                    <SliderSetting
-                      label="Speaking speed"
-                      description="Default pace of speech delivery (0.5x to 2x)."
-                      value={settings.default_speed}
-                      min={0.5}
-                      max={2}
-                      step={0.05}
-                      suffix="x"
-                      onChange={(value) => update({ default_speed: value })}
                     />
                   </>
                 ) : null}

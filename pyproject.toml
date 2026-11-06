@@ -21,7 +21,6 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.26.0",
-    "scipy>=1.12.0",
     "soundfile>=0.12.1",
     "librosa>=0.10.1",
     "noisereduce>=3.0.0",
@@ -29,7 +28,6 @@ dependencies = [
     "platformdirs>=4.2.0",
     "fastapi>=0.115.0",
     "uvicorn>=0.34.0",
-    "websockets>=17.4",
     "setuptools<81",  # perth (Chatterbox watermark) imports pkg_resources, removed in 81
   ]
 
@@ -47,7 +45,7 @@ voiceclone-api = "app.api.server:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["voiceclone*", "app*"]
+include = ["app*"]
 
 # ---------------------------------------------------------------------------
 # Ruff - linting + import hygiene
@@ -106,25 +104,8 @@ check_untyped_defs = false
 [tool.vulture]
 min_confidence = 80
 paths = ["app", "tests"]
-# Every name below is part of a public signature and must not be removed:
+# Names below are protocol / entry-point names that vulture cannot see being called:
 #   *_                - private/protected convention
 #   to_dict/from_dict - serialisation protocol
 #   main/run          - entry points
-#   args/time_info    - PortAudio callback + Qt signal signatures
-#   min_chars_per_chunk / min_silence_duration_ms
-#   source_audio_path / target_reference_path
-#                       - public parameters of overridable engine/audio methods
-ignore_names = [
-    "_*",
-    "to_dict",
-    "from_dict",
-    "main",
-    "run",
-    "args",
-    "time_info",
-    "min_chars_per_chunk",
-    "min_silence_duration_ms",
-    "source_audio_path",
-    "target_reference_path",
-    "a",
-]
+ignore_names = ["_*", "to_dict", "from_dict", "main", "run"]

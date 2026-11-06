@@ -143,10 +143,10 @@ class _Resp:
     def __enter__(self):
         return self
 
-    def __exit__(self, *a):
+    def __exit__(self, *_exc):
         return False
 
-    def read(self, n):
+    def read(self, _size):
         if self._sent:
             return b""
         self._sent = True
@@ -158,7 +158,7 @@ class TestDownload(unittest.TestCase):
         file = ModelFile("m.bin", "http://x/m.bin", len(body), hashlib.sha256(body).hexdigest())
         model = ModelMetadata(
             id="m", name="M", version="1", license_name="", commercial_allowed=True, license_notice="",
-            download_url=file.url, expected_sha256="", total_bytes=len(body), local_dir="m", files=[file],
+            total_bytes=len(body), local_dir="m", files=[file],
         )
         target = directory / "m"
         target.mkdir()

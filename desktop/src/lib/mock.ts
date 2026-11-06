@@ -196,19 +196,8 @@ export const mockModels: ModelInfo[] = [
 
 export const mockSettings: AppSettings = {
   theme: "dark",
-  default_engine: "Chatterbox TTS",
   device_preference: "auto",
-  use_half_precision: true,
-  idle_unload_minutes: 10,
   clear_device_cache_after_job: false,
-  default_export_format: "wav",
-  enable_audio_watermark: true,
-  inject_metadata_tag: true,
-  default_temperature: 0.75,
-  default_cfg_weight: 2.5,
-  default_exaggeration: 1.0,
-  default_speed: 1.0,
-  default_sentence_pause_ms: 250,
   max_chars_per_chunk: 200,
   log_level: "INFO",
 };

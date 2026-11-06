@@ -7,7 +7,7 @@ from __future__ import annotations
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +25,6 @@ class EngineLicense:
     url: str
     commercial_permitted: bool
     notice: str
-    requires_consent_warning: bool = True
 
 
 @dataclass
@@ -41,7 +40,6 @@ class SynthesisParameters:
     repetition_penalty: float = 2.0
     language: str = "en"
     enable_watermark: bool = True
-    extra_params: dict[str, Any] = field(default_factory=dict)
 
 
 class TTSEngine(ABC):
@@ -156,15 +154,3 @@ class TTSEngine(ABC):
     def get_default_params(self) -> SynthesisParameters:
         """Returns the recommended default parameters tuned for this engine."""
         pass
-
-    def voice_conversion(
-        self,
-        source_audio_path: str | Path,
-        target_reference_path: str | Path,
-        params: SynthesisParameters,
-    ) -> tuple[np.ndarray, int]:
-        """
-        Converts the vocal timbre of source_audio into target_reference voice.
-        Default implementation raises NotImplementedError if unsupported.
-        """
-        raise NotImplementedError(f"Voice conversion is not supported by {self.name}.")

@@ -20,42 +20,15 @@ logger = get_logger("config")
 class AppConfig:
     """Strongly typed application configuration settings."""
 
-    # Appearance & Onboarding
-    theme: str = "dark"  # "dark", "light", "high_contrast"
-    first_run_completed: bool = False
-    global_ethics_consent: bool = False
-    consent_timestamp: str | None = None
-
-    # Model & Engine Defaults
-    default_engine: str = "Chatterbox TTS"
+    theme: str = "dark"  # "dark", "light", "system"
     device_preference: str = "auto"  # "auto", "cuda", "mps", "cpu"
-    use_half_precision: bool = True  # fp16 where supported
-    idle_unload_minutes: int = 10  # 0 = disabled
     # Purging the CUDA/MPS allocator cache after every job forces the next
     # synthesis to re-allocate its blocks, which slows down repeated renders.
     clear_device_cache_after_job: bool = False
 
-    # Audio I/O
-    audio_input_device: str | None = None
-    audio_output_device: str | None = None
-    default_export_format: str = "wav"  # "wav", "mp3", "flac", "ogg"
-    default_sample_rate: int = 24000
-    default_bit_depth: int = 16  # 16, 24, 32
-
-    # Safety & Watermarking
-    enable_audio_watermark: bool = True  # Perth / model-native watermark
-    inject_metadata_tag: bool = True  # Embed 'AI-generated voice' tag in files
-
     # Paths overrides (empty defaults to standard paths)
     custom_models_dir: str | None = None
-    custom_exports_dir: str | None = None
 
-    # Synthesis defaults
-    default_temperature: float = 0.75
-    default_cfg_weight: float = 2.5
-    default_exaggeration: float = 1.0
-    default_speed: float = 1.0
-    default_sentence_pause_ms: int = 250
     # Maximum characters rendered in one pass. Generation cost grows roughly
     # quadratically with chunk length, so smaller chunks render noticeably
     # faster (and start playing sooner) at the cost of slightly more joins.
@@ -124,14 +97,6 @@ class ConfigManager:
             p.mkdir(parents=True, exist_ok=True)
             return p
         return paths.models_dir
-
-    def get_exports_directory(self) -> Path:
-        """Returns effective exports directory (custom if configured, else default)."""
-        if self.config.custom_exports_dir:
-            p = Path(self.config.custom_exports_dir)
-            p.mkdir(parents=True, exist_ok=True)
-            return p
-        return paths.exports_dir
 
 
 # Global singleton instance

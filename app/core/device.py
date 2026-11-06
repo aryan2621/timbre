@@ -21,10 +21,6 @@ class DeviceInfo:
     device_type: str  # "cuda", "mps", "cpu"
     device_name: str
     total_memory_mb: float = 0.0
-    allocated_memory_mb: float = 0.0
-    free_memory_mb: float = 0.0
-    supports_fp16: bool = False
-    supports_bf16: bool = False
     warning_message: str | None = None
 
 
@@ -94,30 +90,18 @@ class DeviceManager:
                 device_index = torch.cuda.current_device()
                 props = torch.cuda.get_device_properties(device_index)
                 total_mem = props.total_memory / (1024 * 1024)
-                allocated_mem = torch.cuda.memory_allocated(device_index) / (1024 * 1024)
-                reserved_mem = torch.cuda.memory_reserved(device_index) / (1024 * 1024)
-                free_mem = total_mem - reserved_mem
-
-                # Capability check for half precision
                 major, minor = props.major, props.minor
-                supports_fp16 = major >= 6 or (major == 5 and minor >= 3)
-                supports_bf16 = major >= 8
 
                 return DeviceInfo(
                     device_type="cuda",
                     device_name=f"{props.name} (CUDA {major}.{minor})",
                     total_memory_mb=round(total_mem, 1),
-                    allocated_memory_mb=round(allocated_mem, 1),
-                    free_memory_mb=round(max(0.0, free_mem), 1),
-                    supports_fp16=supports_fp16,
-                    supports_bf16=supports_bf16,
                 )
             except Exception as e:
                 logger.error("Failed to query CUDA device properties: %s", e)
                 return DeviceInfo(
                     device_type="cuda",
                     device_name="NVIDIA GPU (CUDA)",
-                    supports_fp16=True,
                 )
 
         if target == "mps" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
@@ -125,8 +109,6 @@ class DeviceManager:
                 device_type="mps",
                 device_name=f"Apple Silicon GPU (MPS / {platform.machine()})",
                 total_memory_mb=0.0,  # Unified memory on Apple Silicon
-                supports_fp16=True,
-                supports_bf16=False,
             )
 
         # CPU Fallback
@@ -134,8 +116,6 @@ class DeviceManager:
         return DeviceInfo(
             device_type="cpu",
             device_name=f"CPU ({cpu_name})",
-            supports_fp16=False,
-            supports_bf16=False,
             warning_message="Running on CPU. Synthesis will be slower than with GPU acceleration.",
         )
 

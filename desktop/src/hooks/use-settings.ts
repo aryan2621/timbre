@@ -17,15 +17,14 @@ import {
   Cpu,
   Monitor,
   ScrollText,
-  SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { mockEngines, mockSettings, demoList } from "@/lib/mock";
+import { mockSettings } from "@/lib/mock";
 import { useTheme, type Theme } from "@/lib/theme";
-import type { AppSettings, EngineInfo } from "@/lib/types";
+import type { AppSettings } from "@/lib/types";
 
-export interface SettingsSection {
+interface SettingsSection {
   id: string;
   label: string;
   icon: typeof Monitor;
@@ -34,45 +33,27 @@ export interface SettingsSection {
 }
 
 /** The settings sections shown in the rail, in display order. */
-export const SETTINGS_SECTIONS: SettingsSection[] = [
+const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "appearance",
     label: "Appearance",
     icon: Monitor,
-    description: "Theme and provenance defaults.",
-    keys: ["theme", "enable_audio_watermark", "inject_metadata_tag"],
+    description: "Theme.",
+    keys: ["theme"],
   },
   {
     id: "engine",
     label: "Engine & hardware",
     icon: Cpu,
-    description: "Which model runs, and where it runs.",
-    keys: [
-      "default_engine",
-      "device_preference",
-      "use_half_precision",
-      "idle_unload_minutes",
-      "clear_device_cache_after_job",
-    ],
+    description: "Where the model runs.",
+    keys: ["device_preference", "clear_device_cache_after_job"],
   },
   {
     id: "audio",
     label: "Audio & quality",
     icon: AudioLines,
-    description: "Export format and sentence rhythm.",
-    keys: ["default_export_format", "default_sentence_pause_ms", "max_chars_per_chunk"],
-  },
-  {
-    id: "synthesis",
-    label: "Voice defaults",
-    icon: SlidersHorizontal,
-    description: "The baseline every new render starts from.",
-    keys: [
-      "default_temperature",
-      "default_cfg_weight",
-      "default_exaggeration",
-      "default_speed",
-    ],
+    description: "How the script is split into chunks.",
+    keys: ["max_chars_per_chunk"],
   },
   {
     id: "diagnostics",
@@ -84,13 +65,12 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 ];
 
 /** Normalizes the theme coming from the backend into a known theme name. */
-export function themeFromSetting(value: string): Theme {
+function themeFromSetting(value: string): Theme {
   return value === "light" || value === "system" ? value : "dark";
 }
 
 export interface SettingsState {
   settings: AppSettings;
-  engines: EngineInfo[];
   activeSection: string;
   setActiveSection: (id: string) => void;
   search: string;
@@ -118,7 +98,6 @@ export function useSettings(online: boolean): SettingsState {
 
   const [settings, setSettings] = useState<AppSettings>(mockSettings);
   const [saved, setSaved] = useState<AppSettings>(mockSettings);
-  const [engines, setEngines] = useState<EngineInfo[]>(demoList(mockEngines));
   const [activeSection, setActiveSection] = useState("appearance");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -132,10 +111,7 @@ export function useSettings(online: boolean): SettingsState {
         return;
       }
       try {
-        const [nextSettings, nextEngines] = await Promise.all([
-          api.getSettings(),
-          api.listEngines(),
-        ]);
+        const nextSettings = await api.getSettings();
         if (cancelled) return;
         const normalized: AppSettings = {
           ...nextSettings,
@@ -143,7 +119,6 @@ export function useSettings(online: boolean): SettingsState {
         };
         setSettings(normalized);
         setSaved(normalized);
-        setEngines(nextEngines);
       } catch {
         /* keep the demo defaults when the sidecar does not answer */
       } finally {
@@ -241,7 +216,6 @@ export function useSettings(online: boolean): SettingsState {
 
   return {
     settings,
-    engines,
     activeSection,
     setActiveSection,
     search,

@@ -37,7 +37,6 @@ class PerthWatermark:
     watermark signature into high-frequency psychoacoustic spectral masks.
     """
 
-    WATERMARK_SALT = 0x5045525448  # 'PERTH' in hex
 
     @classmethod
     def apply(cls, audio, sample_rate: int):
@@ -146,7 +145,6 @@ class ChatterboxEngine(TTSEngine):
             url="https://opensource.org/licenses/MIT",
             commercial_permitted=True,
             notice="Chatterbox TTS is MIT licensed and fully permitted for commercial and non-commercial local use.",
-            requires_consent_warning=True,
         )
 
     @property

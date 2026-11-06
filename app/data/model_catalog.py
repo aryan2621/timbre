@@ -28,12 +28,8 @@ CATALOG_MODELS: list[ModelMetadata] = [
         license_name="MIT License (Commercial Allowed)",
         commercial_allowed=True,
         license_notice="Open-source zero-shot voice cloner with Perth watermarking. Multilingual (23 languages including Hindi).",
-        download_url=f"{_CHATTERBOX}/ve.safetensors",
-        expected_sha256="",
         total_bytes=6_400_811_366,  # EN (5 files) + MTL (5 files)
         local_dir="chatterbox",
-        min_ram_gb=8,
-        recommended=True,
         files=[
             # --- English model (from_local) ---
             ModelFile("ve.safetensors", f"{_CHATTERBOX}/ve.safetensors", 5_695_784,
@@ -63,11 +59,8 @@ CATALOG_MODELS: list[ModelMetadata] = [
         license_name="CPML (Strictly Non-Commercial)",
         commercial_allowed=False,
         license_notice="Multi-lingual voice cloner. Commercial use is strictly prohibited by CPML.",
-        download_url=f"{_XTTS}/model.pth",
-        expected_sha256="c7ea20001c6a0a841c77e252d8409f6a74fb423e79b3206a0771ba5989776187",
         total_bytes=1_867_929_118,
         local_dir="xtts_v2",
-        min_ram_gb=12,
         files=[
             ModelFile("model.pth", f"{_XTTS}/model.pth", 1_867_929_118,
                       "c7ea20001c6a0a841c77e252d8409f6a74fb423e79b3206a0771ba5989776187"),
@@ -80,11 +73,8 @@ CATALOG_MODELS: list[ModelMetadata] = [
         license_name="MIT License (Commercial Allowed)",
         commercial_allowed=True,
         license_notice="Diffusion transformer zero-shot cloner with Flow Matching.",
-        download_url=f"{_F5}/model_1200000.safetensors",
-        expected_sha256="4180310f91d592cee4bc14998cd37c781f779cf105e8ca8744d9bd48ca7046ae",
         total_bytes=1_348_645_281,
         local_dir="f5_tts",
-        min_ram_gb=6,
         files=[
             ModelFile("model_1200000.safetensors", f"{_F5}/model_1200000.safetensors", 1_348_645_281,
                       "4180310f91d592cee4bc14998cd37c781f779cf105e8ca8744d9bd48ca7046ae"),

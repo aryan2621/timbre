@@ -1,23 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/main.tsx", "src/App.tsx"],
-  "project": ["src/**/*.{ts,tsx}"],
-  "ignore": [
-    "src/components/ui/**",
-    "src/vite-env.d.ts"
+  "entry": [
+    "src/App.tsx"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}"
   ],
   "ignoreDependencies": [
     "@fontsource-variable/inter",
     "@fontsource-variable/jetbrains-mono",
     "@fontsource-variable/source-serif-4",
-    "@tailwindcss/vite",
-    "class-variance-authority",
-    "cmdk",
-    "motion",
-    "sonner",
+    "shadcn",
     "tailwindcss",
-    "tw-animate-css",
-    "wavesurfer.js"
+    "tw-animate-css"
   ],
   "rules": {
     "files": "error",
@@ -27,7 +22,12 @@
     "exports": "warn",
     "types": "warn",
     "duplicates": "warn",
-    "enumMembers": "warn",
-    "classMembers": "warn"
+    "enumMembers": "warn"
+  },
+  "ignoreIssues": {
+    "src/components/ui/**": [
+      "exports",
+      "types"
+    ]
   }
 }

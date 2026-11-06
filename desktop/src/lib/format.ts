@@ -21,16 +21,6 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
-/** `83.4` -> `1m 23s`, for ETAs where the unit matters more than the clock. */
-export function formatEta(seconds: number | null | undefined): string {
-  const value = safeNumber(seconds);
-  if (value === null || value <= 0) return "0s";
-  if (value < 60) return `${Math.round(value)}s`;
-  const mins = Math.floor(value / 60);
-  const secs = Math.round(value % 60);
-  return secs ? `${mins}m ${secs}s` : `${mins}m`;
-}
-
 /** `83.456` -> `1:23.5`, for the transport readout where precision helps. */
 export function formatTimecode(seconds: number | null | undefined): string {
   const value = safeNumber(seconds);

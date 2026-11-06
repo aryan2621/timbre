@@ -112,39 +112,10 @@ export interface DownloadJob {
 
 export interface AppSettings {
   theme: string;
-  default_engine: string;
   device_preference: string;
-  use_half_precision: boolean;
-  idle_unload_minutes: number;
   clear_device_cache_after_job: boolean;
-  default_export_format: string;
-  enable_audio_watermark: boolean;
-  inject_metadata_tag: boolean;
-  default_temperature: number;
-  default_cfg_weight: number;
-  default_exaggeration: number;
-  default_speed: number;
-  default_sentence_pause_ms: number;
   max_chars_per_chunk: number;
   log_level: string;
-}
-
-export interface HealthDetails {
-  ok: boolean;
-  version: string;
-  device: {
-    type: string;
-    name: string;
-    total_memory_mb: number;
-    warning: string | null;
-  };
-  engines: string[];
-  data_dir: string;
-}
-
-export interface BatchRequestItem {
-  text: string;
-  filename: string;
 }
 
 type BatchItemState =

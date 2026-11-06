@@ -9,10 +9,8 @@
  *   - useLibrary          fetching the voice + engine catalogue
  *   - useEngineSelection  which engine is active and what its parameters are
  *   - useSynthesisJob     the background render job lifecycle
- *   - usePlayback         transport controls for the rendered audio
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RefObject } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
@@ -23,7 +21,6 @@ import type {
   SynthesisParams,
   VoiceProfile,
 } from "@/lib/types";
-import type { WaveformPlayerHandle } from "@/components/waveform/waveform-player";
 
 /* -------------------------------------------------------------------------- */
 /* Library                                                                     */
@@ -460,62 +457,5 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
     isRunning,
     synthesize,
     cancel,
-  };
-}
-
-/* -------------------------------------------------------------------------- */
-/* Playback                                                                    */
-/* -------------------------------------------------------------------------- */
-
-export interface Playback {
-  currentTime: number;
-  setCurrentTime: (value: number) => void;
-  playing: boolean;
-  setPlaying: (value: boolean) => void;
-  volume: number;
-  setVolume: (value: number) => void;
-  muted: boolean;
-  setMuted: (value: boolean) => void;
-  togglePlayback: () => void;
-  stopPlayback: () => void;
-  reset: () => void;
-}
-
-/** Transport state for the rendered waveform. */
-export function usePlayback(
-  waveformRef: RefObject<WaveformPlayerHandle | null>,
-): Playback {
-  const [currentTime, setCurrentTime] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [volume, setVolume] = useState(100);
-  const [muted, setMuted] = useState(false);
-
-  const togglePlayback = useCallback(() => {
-    waveformRef.current?.playPause();
-  }, [waveformRef]);
-
-  const stopPlayback = useCallback(() => {
-    waveformRef.current?.stop();
-    setCurrentTime(0);
-    setPlaying(false);
-  }, [waveformRef]);
-
-  const reset = useCallback(() => {
-    setCurrentTime(0);
-    setPlaying(false);
-  }, []);
-
-  return {
-    currentTime,
-    setCurrentTime,
-    playing,
-    setPlaying,
-    volume,
-    setVolume,
-    muted,
-    setMuted,
-    togglePlayback,
-    stopPlayback,
-    reset,
   };
 }

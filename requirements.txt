@@ -5,7 +5,6 @@
 
 # Numerical & Scientific Computing
 numpy==1.26.4
-scipy==1.13.0
 
 # Audio I/O & DSP
 soundfile==0.12.1
@@ -24,7 +23,6 @@ setuptools<81
 # Local HTTP sidecar (Tauri desktop frontend)
 fastapi==0.115.6
 uvicorn==0.34.0
-websockets==17.4 --hash=sha256:bcad49104711f88b2b7c3ba166de172857d837248205e541b044a552558fecc3
 
 # Test Suite
 pytest==8.2.0

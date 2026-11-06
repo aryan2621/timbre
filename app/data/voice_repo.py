@@ -132,29 +132,6 @@ class VoiceRepository:
                 profiles.append(p)
         return profiles
 
-    def update_profile(self, profile: VoiceProfile) -> bool:
-        """Updates name, language, and notes for an existing profile."""
-        if not profile.id:
-            return False
-
-        profile.updated_at = utc_now_iso()
-        with db_mod.db_manager.get_cursor() as cursor:
-            cursor.execute(
-                """
-                UPDATE voice_profiles
-                SET name = ?, language = ?, notes = ?, updated_at = ?
-                WHERE id = ?
-                """,
-                (
-                    profile.name.strip(),
-                    profile.language,
-                    profile.notes,
-                    profile.updated_at,
-                    profile.id,
-                ),
-            )
-        return True
-
     def delete_profile(self, profile_id: int) -> bool:
         """Deletes a voice profile and its associated audio files on disk."""
         profile = self.get_profile_by_id(profile_id)
@@ -174,12 +151,6 @@ class VoiceRepository:
 
         logger.info("Deleted profile %s (ID: %s)", profile.name, profile_id)
         return True
-
-    def add_clip(self, profile_id: int, clip: VoiceClip) -> VoiceClip:
-        """Stores a new audio clip reference for a given profile."""
-        with db_mod.db_manager.get_cursor() as cursor:
-            self._insert_clip(cursor, profile_id, clip)
-        return clip
 
     @staticmethod
     def _insert_clip(cursor, profile_id: int, clip: VoiceClip) -> None:
@@ -211,18 +182,6 @@ class VoiceRepository:
         clip.profile_id = profile_id
         clip.created_at = now
 
-    def set_active_clip(self, profile_id: int, clip_id: int) -> bool:
-        """Sets a specific clip as the primary reference for voice synthesis."""
-        with db_mod.db_manager.get_cursor() as cursor:
-            cursor.execute(
-                "UPDATE voice_clips SET is_active = 0 WHERE profile_id = ?",
-                (profile_id,),
-            )
-            cursor.execute(
-                "UPDATE voice_clips SET is_active = 1 WHERE id = ? AND profile_id = ?",
-                (clip_id, profile_id),
-            )
-        return True
 
 
 voice_repo = VoiceRepository()
