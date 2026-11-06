@@ -8,9 +8,8 @@ import unittest
 
 import numpy as np
 
-from app.audio.player import AudioPlayer, PlaybackState
+from app.audio.stitch import prepare_chunk, stitch_chunks
 from app.engines.base import EngineLicense, SynthesisParameters, TTSEngine
-from app.workers.synth_worker import SynthesisWorker
 
 
 class _FakeEngine(TTSEngine):
@@ -69,14 +68,14 @@ class _FakeEngine(TTSEngine):
 class TestPrepareChunk(unittest.TestCase):
     def test_first_chunk_has_no_leading_pause(self):
         chunk = np.ones(1000, dtype=np.float32)
-        prepared = SynthesisWorker._prepare_chunk(
+        prepared = prepare_chunk(
             chunk, is_first=True, sample_rate=24000, pause_ms=250
         )
         self.assertEqual(len(prepared), 1000)
 
     def test_subsequent_chunk_gets_leading_pause(self):
         chunk = np.ones(1000, dtype=np.float32)
-        prepared = SynthesisWorker._prepare_chunk(
+        prepared = prepare_chunk(
             chunk, is_first=False, sample_rate=24000, pause_ms=250
         )
         self.assertEqual(len(prepared), 1000 + 6000)
@@ -86,7 +85,7 @@ class TestPrepareChunk(unittest.TestCase):
         """Streamed chunks must concatenate into exactly the exported waveform."""
         chunks = [np.full(4000, 0.25, dtype=np.float32) for _ in range(3)]
         prepared = [
-            SynthesisWorker._prepare_chunk(
+            prepare_chunk(
                 chunk,
                 is_first=index == 0,
                 sample_rate=24000,
@@ -94,67 +93,17 @@ class TestPrepareChunk(unittest.TestCase):
             )
             for index, chunk in enumerate(chunks)
         ]
-        stitched = SynthesisWorker._stitch_chunks_with_crossfade(
+        stitched = stitch_chunks(
             chunks, sample_rate=24000, pause_ms=250
         )
         self.assertEqual(len(np.concatenate(prepared)), len(stitched))
         np.testing.assert_allclose(np.concatenate(prepared), stitched, atol=1e-6)
 
     def test_empty_chunk_is_ignored(self):
-        prepared = SynthesisWorker._prepare_chunk(
+        prepared = prepare_chunk(
             np.zeros(0, dtype=np.float32), is_first=True, sample_rate=24000
         )
         self.assertEqual(len(prepared), 0)
-
-
-class TestWorkerStreaming(unittest.TestCase):
-    def test_worker_emits_chunks_that_match_final_audio(self):
-        engine = _FakeEngine()
-        # Long enough to be split into several sentence-aware chunks.
-        text = " ".join(
-            f"This is sentence number {index} and it carries a fair amount of words."
-            for index in range(1, 7)
-        )
-        worker = SynthesisWorker(
-            engine=engine,
-            text=text,
-            reference_audio_path="unused.wav",
-            params=SynthesisParameters(),
-            sentence_pause_ms=250,
-            streaming=True,
-        )
-
-        received: list[np.ndarray] = []
-        worker.chunk_ready.connect(lambda audio, sr, idx, total: received.append(audio))
-
-        worker.run()
-
-        self.assertGreaterEqual(len(received), 2, "expected one signal per text chunk")
-        self.assertEqual(len(engine.calls), len(received))
-
-        concatenated = np.concatenate(received).astype(np.float32)
-        # The streamed audio and the stitched export must be the same waveform.
-        np.testing.assert_allclose(concatenated, worker._stitch_chunks_with_crossfade(
-            [np.full(engine.tone_length, 0.5, dtype=np.float32) for _ in engine.calls],
-            sample_rate=24000,
-            pause_ms=250,
-        ), atol=1e-6)
-
-    def test_streaming_disabled_emits_no_chunks(self):
-        engine = _FakeEngine()
-        worker = SynthesisWorker(
-            engine=engine,
-            text="One two three. Four five six.",
-            reference_audio_path="unused.wav",
-            params=SynthesisParameters(),
-            streaming=False,
-        )
-
-        received: list[np.ndarray] = []
-        worker.chunk_ready.connect(lambda audio, sr, idx, total: received.append(audio))
-        worker.run()
-
-        self.assertEqual(received, [])
 
 
 class TestBaseEngineChunkFallback(unittest.TestCase):
@@ -187,71 +136,6 @@ class TestChatterboxSpeed(unittest.TestCase):
 
         slowed = ChatterboxEngine._apply_speed(audio, 24000, 0.5)
         self.assertGreater(len(slowed), len(audio) * 1.25)
-
-
-class TestStreamingPlayer(unittest.TestCase):
-    def setUp(self) -> None:
-        self.player = AudioPlayer()
-        # No sound device in CI: capture the callback instead of opening a stream.
-        self.callback = None
-        self.player._open_output_stream = self._fake_open  # type: ignore[assignment]
-
-    def _fake_open(self, callback) -> bool:
-        self.callback = callback
-        return True
-
-    def _pull(self, frames: int = 1024) -> np.ndarray:
-        out = np.zeros((frames, 1), dtype=np.float32)
-        self.callback(out, frames, None, None)
-        return out[:, 0]
-
-    def test_append_chunk_is_playable(self):
-        self.assertTrue(self.player.start_stream_mode(24000))
-        self.player.append_chunk(np.full(480, 0.25, dtype=np.float32), 24000)
-
-        played = self._pull(1024)
-        self.assertAlmostEqual(float(played[0]), 0.25, places=5)
-        self.assertAlmostEqual(float(played[479]), 0.25, places=5)
-        # The rest of the block is silence (underrun).
-        self.assertEqual(float(played[480]), 0.0)
-
-    def test_position_and_duration_track_the_stream(self):
-        self.player.start_stream_mode(24000)
-        self.player.append_chunk(np.full(24000, 0.5, dtype=np.float32), 24000)
-
-        self.assertAlmostEqual(self.player.duration_seconds, 1.0, places=5)
-        self._pull(4096)
-        self.assertAlmostEqual(self.player.current_position_seconds, 4096 / 24000, places=5)
-
-    def test_finish_stream_stops_playback_once_drained(self):
-        self.player.start_stream_mode(24000)
-        self.player.append_chunk(np.ones(256, dtype=np.float32), 24000)
-        self.player.finish_stream()
-
-        self._pull(1024)
-        self.assertEqual(self.player.state, PlaybackState.STOPPED)
-
-    def test_stop_resets_stream_state(self):
-        self.player.start_stream_mode(24000)
-        self.player.append_chunk(np.ones(256, dtype=np.float32), 24000)
-        self.player.stop()
-
-        self.assertFalse(self.player.is_streaming)
-        self.assertEqual(self.player.duration_seconds, 0.0)
-        self.assertEqual(self.player.state, PlaybackState.STOPPED)
-
-    def test_replay_buffer_survives_finished_stream(self):
-        self.player.start_stream_mode(24000)
-        clip = np.full(2400, 0.3, dtype=np.float32)
-        self.player.append_chunk(clip, 24000)
-        self.player.finish_stream()
-        self.player.set_replay_buffer(clip)
-
-        # Drain the live stream, then playback must fall back to the full clip.
-        self._pull(4096)
-        self.assertEqual(self.player.state, PlaybackState.STOPPED)
-        self.assertTrue(self.player.play())
-        self.assertEqual(self.player.state, PlaybackState.PLAYING)
 
 
 if __name__ == "__main__":

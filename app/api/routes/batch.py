@@ -2,21 +2,25 @@
 Batch orchestration HTTP routes (queue + job lifecycle).
 """
 
-import random
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from app.api.routes._common import build_params, resolve_engine
 from app.api.schemas import BatchRequest
 from app.core.logging_setup import get_logger
 from app.data.voice_repo import voice_repo
-from app.engines.base import SynthesisParameters
-from app.engines.registry import engine_registry
-from app.services.synthesis_service import BatchItemState, batch_manager
+from app.services.synthesis_service import BatchItemState, RenderBusy, batch_manager
 
 router = APIRouter()
 logger = get_logger("batch")
+
+
+def _safe_filename(raw: str | None, default_stem: str) -> str:
+    """A bare '<name>.wav': no folders, no '..', no hidden files."""
+    stem = Path((raw or "").replace("\\", "/")).stem.strip().lstrip(".")
+    return f"{stem or default_stem}.wav"
 
 
 @router.post("/api/batch")
@@ -30,52 +34,31 @@ def start_batch(payload: BatchRequest) -> dict[str, Any]:
     if profile is None:
         raise HTTPException(status_code=404, detail="Voice profile not found")
 
-    engine = engine_registry.get_engine(payload.engine_name)
-    if engine is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Unknown engine '{payload.engine_name}'. "
-                f"Available: {', '.join(engine_registry.list_engine_names())}"
-            ),
-        )
-    if not engine.is_available():
-        raise HTTPException(
-            status_code=409,
-            detail=f"The {engine.name} weights are not downloaded on this machine",
-        )
-
-    params = SynthesisParameters(
-        temperature=payload.params.temperature,
-        cfg_weight=payload.params.cfg_weight,
-        exaggeration=payload.params.exaggeration,
-        speed=payload.params.speed,
-        seed=payload.params.seed,
-        top_p=payload.params.top_p,
-        repetition_penalty=payload.params.repetition_penalty,
-        language=payload.params.language,
-        enable_watermark=payload.params.enable_watermark,
-    )
-    if params.seed < 0:
-        params.seed = random.randint(1, 99_999_999)
+    engine = resolve_engine(payload.engine_name)
+    params = build_params(payload.params)
 
     items = []
+    used: set[str] = set()
     for index, line in enumerate(lines):
-        filename = (line.filename or "").strip() or f"line_{index + 1:04d}.wav"
-        if not filename.lower().endswith(".wav"):
-            filename = f"{Path(filename).stem}.wav"
-        items.append(
-            BatchItemState(index=index, filename=filename, text=line.text.strip())
-        )
+        filename = _safe_filename(line.filename, f"line_{index + 1:04d}")
+        base, counter = filename, 2
+        while filename.lower() in used:
+            filename = f"{Path(base).stem}_{counter}.wav"
+            counter += 1
+        used.add(filename.lower())
+        items.append(BatchItemState(index=index, filename=filename, text=line.text.strip()))
 
-    job = batch_manager.create(
-        engine=engine,
-        profile=profile,
-        items=items,
-        params=params,
-        sentence_pause_ms=payload.sentence_pause_ms,
-        output_dir=payload.output_dir,
-    )
+    try:
+        job = batch_manager.create(
+            engine=engine,
+            profile=profile,
+            items=items,
+            params=params,
+            sentence_pause_ms=payload.sentence_pause_ms,
+            output_dir=payload.output_dir,
+        )
+    except RenderBusy as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return job.to_dict()
 
 

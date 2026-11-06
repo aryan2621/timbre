@@ -5,13 +5,31 @@ Data repository for speech synthesis history logging and retrieval.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 import app.data.database as db_mod
 from app.core.logging_setup import get_logger
+from app.core.paths import paths
 from app.data.models import HistoryEntry, utc_now_iso
 
 logger = get_logger("history_repo")
+
+
+def _remove_owned_audio(audio_path: str | None) -> None:
+    """Deletes a render, but only inside our own history folder.
+
+    Batch renders can live in a folder the user picked; removing a history row
+    must never delete their exported files.
+    """
+    if not audio_path or not os.path.exists(audio_path):
+        return
+    try:
+        if not Path(audio_path).resolve().is_relative_to(paths.history_dir.resolve()):
+            return
+        os.remove(audio_path)
+    except OSError as e:
+        logger.warning("Failed to remove history audio file %s: %s", audio_path, e)
 
 
 class HistoryRepository:
@@ -85,11 +103,8 @@ class HistoryRepository:
         if not entry:
             return False
 
-        if delete_file and entry.audio_path and os.path.exists(entry.audio_path):
-            try:
-                os.remove(entry.audio_path)
-            except Exception as e:
-                logger.warning("Failed to remove history audio file %s: %s", entry.audio_path, e)
+        if delete_file:
+            _remove_owned_audio(entry.audio_path)
 
         with db_mod.db_manager.get_cursor() as cursor:
             cursor.execute("DELETE FROM history WHERE id = ?", (entry_id,))
@@ -103,11 +118,7 @@ class HistoryRepository:
             cursor.execute("DELETE FROM history")
         if delete_files:
             for row in rows:
-                if row["audio_path"] and os.path.exists(row["audio_path"]):
-                    try:
-                        os.remove(row["audio_path"])
-                    except Exception as e:
-                        logger.warning("Failed to remove history audio file %s: %s", row["audio_path"], e)
+                _remove_owned_audio(row["audio_path"])
         return len(rows)
 
     @staticmethod

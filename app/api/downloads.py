@@ -1,9 +1,8 @@
 """
 Background model-download manager for the HTTP sidecar.
 
-Mirrors the behaviour of the Qt ``ModelDownloadWorker`` (Range resume,
-``.part`` staging, optional SHA-256 verification) but as a plain thread with a
-pollable state object so the React frontend can show progress.
+Range resume, ``.part`` staging and SHA-256 verification, run on a plain
+thread with a pollable state object so the React frontend can show progress.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ from typing import Any
 
 from app.core.logging_setup import get_logger
 from app.data.model_catalog import model_local_path
-from app.data.models import ModelMetadata
+from app.data.models import ModelFile, ModelMetadata
 
 logger = get_logger("downloads")
 
@@ -125,103 +124,7 @@ class DownloadManager:
             self._jobs.pop(job.id, None)
 
     def _run(self, job: DownloadJob, model: ModelMetadata, models_dir: Path) -> None:
-        if model.files:
-            return self._run_multi(job, model, models_dir)
-
-        destination = model_local_path(model, models_dir) / Path(model.download_url).name
-        part_file = destination.with_suffix(destination.suffix + ".part")
-
-        try:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            if destination.exists():
-                job.state = "done"
-                job.progress = 100.0
-                job.message = "Already downloaded"
-                job.file_path = str(destination)
-                return None
-
-            existing_bytes = part_file.stat().st_size if part_file.exists() else 0
-            headers = {"Range": f"bytes={existing_bytes}-"} if existing_bytes > 0 else {}
-
-            job.state = "running"
-            job.message = "Connecting"
-            job.downloaded_bytes = existing_bytes
-            job.total_bytes = model.total_bytes if model.total_bytes else 0
-
-            request = urllib.request.Request(model.download_url, headers=headers)
-            try:
-                response_cm = urllib.request.urlopen(request, timeout=30)
-            except urllib.error.HTTPError as http_error:
-                if http_error.code != 416 or existing_bytes == 0:
-                    raise
-                response_cm = None  # The .part file already holds the full body.
-
-            if response_cm is None:
-                self._finalize(job, model, part_file, destination)
-                return None
-
-            with response_cm as response:
-                if existing_bytes > 0 and response.status != 206:
-                    existing_bytes = 0  # Server ignored Range and restarted the body.
-                content_length = response.headers.get("Content-Length")
-                total_bytes = int(content_length) + existing_bytes if content_length else 0
-                if total_bytes:
-                    job.total_bytes = total_bytes
-
-                downloaded = existing_bytes
-                job.downloaded_bytes = downloaded
-                mode = "ab" if existing_bytes > 0 else "wb"
-                last_time = time.time()
-                bytes_since_last = 0
-
-                with open(part_file, mode) as handle:
-                    while True:
-                        if job.cancel_event.is_set():
-                            job.state = "cancelled"
-                            job.message = "Download cancelled"
-                            logger.info("Download cancelled for %s", model.id)
-                            return None
-
-                        chunk = response.read(CHUNK_BYTES)
-                        if not chunk:
-                            break
-
-                        handle.write(chunk)
-                        downloaded += len(chunk)
-                        job.downloaded_bytes = downloaded
-                        bytes_since_last += len(chunk)
-
-                        now = time.time()
-                        elapsed = now - last_time
-                        if elapsed >= PROGRESS_INTERVAL_SECONDS:
-                            job.speed_mb_s = (bytes_since_last / (1024 * 1024)) / elapsed
-                            job.progress = (
-                                (downloaded / job.total_bytes) * 100.0 if job.total_bytes else 0.0
-                            )
-                            downloaded_mb = downloaded / (1024 * 1024)
-                            total_mb = job.total_bytes / (1024 * 1024) if job.total_bytes else 0.0
-                            job.message = (
-                                f"{downloaded_mb:.1f} MB / {total_mb:.1f} MB "
-                                f"({job.speed_mb_s:.2f} MB/s)"
-                            )
-                            last_time = now
-                            bytes_since_last = 0
-
-            if job.cancel_event.is_set():
-                job.state = "cancelled"
-                job.message = "Download cancelled"
-                return None
-
-            self._finalize(job, model, part_file, destination)
-
-        except Exception as exc:  # noqa: BLE001 - surfaced to the UI as job.error
-            logger.exception("Model download failed for %s", model.id)
-            job.state = "failed"
-            job.error = f"Download failed: {exc}"
-            job.message = "Download failed"
-
-    def _run_multi(self, job: DownloadJob, model: ModelMetadata, models_dir: Path) -> None:
-        """Downloads every file in ``model.files`` with Aggregated progress/cancel/SHA-256."""
+        """Downloads every file of the model with resume, progress, cancel and SHA-256."""
         try:
             destination_dir = model_local_path(model, models_dir)
             destination_dir.mkdir(parents=True, exist_ok=True)
@@ -231,155 +134,114 @@ class DownloadManager:
             job.state = "running"
             job.message = "Connecting"
 
-            downloaded_before_file = 0
+            done_bytes = 0
             for index, file in enumerate(model.files):
                 if job.cancel_event.is_set():
-                    job.state = "cancelled"
-                    job.message = "Download cancelled"
-                    return
+                    return self._cancelled(job)
 
                 job.message = f"Downloading {file.name} ({index + 1}/{len(model.files)})"
                 destination = destination_dir / file.name
-                part_file = destination.with_suffix(destination.suffix + ".part")
-
                 if destination.exists():
-                    downloaded_before_file += file.size
-                    job.downloaded_bytes = downloaded_before_file
-                    job.progress = (
-                        (downloaded_before_file / total_bytes) * 100.0 if total_bytes else 100.0
-                    )
+                    done_bytes += file.size
+                    job.downloaded_bytes = done_bytes
+                    job.progress = (done_bytes / total_bytes) * 100.0 if total_bytes else 100.0
                     continue
 
-                existing_bytes = part_file.stat().st_size if part_file.exists() else 0
-                headers = {"Range": f"bytes={existing_bytes}-"} if existing_bytes > 0 else {}
-
-                request = urllib.request.Request(file.url, headers=headers)
-                try:
-                    response_cm = urllib.request.urlopen(request, timeout=30)
-                except urllib.error.HTTPError as http_error:
-                    if http_error.code != 416 or existing_bytes == 0:
-                        raise
-                    response_cm = None  # The .part file already holds the full body.
-
-                if response_cm is None:
-                    self._finalize_single(job, file, part_file, destination)
-                else:
-                    with response_cm as response:
-                        if existing_bytes > 0 and response.status != 206:
-                            existing_bytes = 0  # Server ignored Range and restarted the body.
-                        downloaded_in_file = existing_bytes
-                        job.downloaded_bytes = downloaded_before_file + downloaded_in_file
-                        mode = "ab" if existing_bytes > 0 else "wb"
-                        last_time = time.time()
-                        bytes_since_last = 0
-
-                        with open(part_file, mode) as handle:
-                            while True:
-                                if job.cancel_event.is_set():
-                                    job.state = "cancelled"
-                                    job.message = "Download cancelled"
-                                    logger.info("Download cancelled for %s", model.id)
-                                    return
-
-                                chunk = response.read(CHUNK_BYTES)
-                                if not chunk:
-                                    break
-
-                                handle.write(chunk)
-                                downloaded_in_file += len(chunk)
-                                job.downloaded_bytes = downloaded_before_file + downloaded_in_file
-                                bytes_since_last += len(chunk)
-
-                                now = time.time()
-                                elapsed = now - last_time
-                                if elapsed >= PROGRESS_INTERVAL_SECONDS:
-                                    job.speed_mb_s = (bytes_since_last / (1024 * 1024)) / elapsed
-                                    job.progress = (
-                                        (job.downloaded_bytes / total_bytes) * 100.0 if total_bytes else 0.0
-                                    )
-                                    downloaded_mb = job.downloaded_bytes / (1024 * 1024)
-                                    total_mb = total_bytes / (1024 * 1024)
-                                    job.message = (
-                                        f"{downloaded_mb:.1f} MB / {total_mb:.1f} MB "
-                                        f"({job.speed_mb_s:.2f} MB/s) — {file.name}"
-                                    )
-                                    last_time = now
-                                    bytes_since_last = 0
-
-                    self._finalize_single(job, file, part_file, destination)
-
-                done_bytes_file = (
-                    destination.stat().st_size if destination.exists() else file.size
-                )
-                downloaded_before_file += max(done_bytes_file, file.size)
-                # If _finalize_single failed on checksum, it set job.state; stop here.
-                if job.state in {"failed"}:
-                    return
+                if not self._download_file(job, file, destination, done_bytes, total_bytes):
+                    return None  # cancelled or failed: state already set
+                done_bytes += file.size
 
             job.state = "done"
             job.progress = 100.0
             job.speed_mb_s = 0.0
             job.file_path = str(destination_dir)
             job.message = "Download complete"
-            logger.info("Downloaded model %s (files) to %s", model.id, destination_dir)
-
+            logger.info("Downloaded model %s to %s", model.id, destination_dir)
         except Exception as exc:  # noqa: BLE001 - surfaced to the UI as job.error
             logger.exception("Model download failed for %s", model.id)
             job.state = "failed"
             job.error = f"Download failed: {exc}"
             job.message = "Download failed"
 
-    def _finalize_single(
+    @staticmethod
+    def _cancelled(job: DownloadJob) -> None:
+        job.state = "cancelled"
+        job.message = "Download cancelled"
+        logger.info("Download cancelled for %s", job.model_id)
+
+    def _download_file(
         self,
         job: DownloadJob,
-        file,
-        part_file: Path,
+        file: ModelFile,
         destination: Path,
-    ) -> None:
-        if part_file.exists():
-            if destination.exists():
-                destination.unlink()
-            part_file.rename(destination)
+        done_bytes: int,
+        total_bytes: int,
+    ) -> bool:
+        """Fetches one file into ``<name>.part`` then renames it. False if the job stopped."""
+        part_file = destination.with_suffix(destination.suffix + ".part")
+        existing_bytes = part_file.stat().st_size if part_file.exists() else 0
+        headers = {"Range": f"bytes={existing_bytes}-"} if existing_bytes > 0 else {}
 
-        expected = (file.sha256 or "").strip()
-        if expected:
+        try:
+            response_cm = urllib.request.urlopen(
+                urllib.request.Request(file.url, headers=headers), timeout=30
+            )
+        except urllib.error.HTTPError as http_error:
+            if http_error.code != 416 or existing_bytes == 0:
+                raise
+            response_cm = None  # The .part file already holds the full body.
+
+        if response_cm is not None:
+            with response_cm as response:
+                if existing_bytes > 0 and response.status != 206:
+                    existing_bytes = 0  # Server ignored Range and restarted the body.
+                content_length = response.headers.get("Content-Length")
+                expected_len = int(content_length) + existing_bytes if content_length else 0
+
+                downloaded = existing_bytes
+                last_time, bytes_since_last = time.time(), 0
+                with open(part_file, "ab" if existing_bytes > 0 else "wb") as handle:
+                    while chunk := response.read(CHUNK_BYTES):
+                        if job.cancel_event.is_set():
+                            self._cancelled(job)
+                            return False
+                        handle.write(chunk)
+                        downloaded += len(chunk)
+                        bytes_since_last += len(chunk)
+                        job.downloaded_bytes = done_bytes + downloaded
+
+                        now = time.time()
+                        if now - last_time >= PROGRESS_INTERVAL_SECONDS:
+                            job.speed_mb_s = (bytes_since_last / (1024 * 1024)) / (now - last_time)
+                            job.progress = (
+                                (job.downloaded_bytes / total_bytes) * 100.0 if total_bytes else 0.0
+                            )
+                            job.message = (
+                                f"{job.downloaded_bytes / 1048576:.1f} MB / {total_bytes / 1048576:.1f} MB "
+                                f"({job.speed_mb_s:.2f} MB/s) — {file.name}"
+                            )
+                            last_time, bytes_since_last = now, 0
+
+            if job.cancel_event.is_set():
+                self._cancelled(job)
+                return False
+            if expected_len and downloaded != expected_len:
+                # Keep the .part file so the next attempt resumes where this one stopped.
+                raise OSError(f"{file.name} ended early ({downloaded} of {expected_len} bytes)")
+
+        if part_file.exists():
+            part_file.replace(destination)
+
+        expected_hash = (file.sha256 or "").strip()
+        if expected_hash:
             job.message = f"Verifying {file.name}"
-            if not self._verify_sha256(destination, expected):
+            if not self._verify_sha256(destination, expected_hash):
                 destination.unlink(missing_ok=True)
                 job.state = "failed"
                 job.error = f"SHA-256 mismatch for {file.name}. Corrupted download."
                 job.message = "Verification failed"
-                return
-
-    def _finalize(
-        self,
-        job: DownloadJob,
-        model: ModelMetadata,
-        part_file: Path,
-        destination: Path,
-    ) -> None:
-        if part_file.exists():
-            if destination.exists():
-                destination.unlink()
-            part_file.rename(destination)
-
-        expected = (model.expected_sha256 or "").strip()
-        if expected:
-            job.message = "Verifying SHA-256 integrity"
-            job.progress = 99.0
-            if not self._verify_sha256(destination, expected):
-                destination.unlink(missing_ok=True)
-                job.state = "failed"
-                job.error = "SHA-256 checksum mismatch. The download was corrupted."
-                job.message = "Verification failed"
-                return
-
-        job.state = "done"
-        job.progress = 100.0
-        job.speed_mb_s = 0.0
-        job.file_path = str(destination)
-        job.message = "Download complete"
-        logger.info("Downloaded model %s to %s", model.id, destination)
+                return False
+        return True
 
     @staticmethod
     def _verify_sha256(path: Path, expected_hash: str) -> bool:

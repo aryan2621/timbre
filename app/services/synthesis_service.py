@@ -18,13 +18,14 @@ from typing import Any
 import numpy as np
 
 from app.audio.chunker import TextChunker
+from app.audio.stitch import stitch_chunks
 from app.core.config import config_manager
 from app.core.device import device_manager
 from app.core.logging_setup import get_logger
+from app.core.paths import paths
 from app.data.history_repo import history_repo
 from app.data.models import HistoryEntry
 from app.engines.base import SynthesisParameters, TTSEngine
-from app.workers.synth_worker import SynthesisWorker
 
 logger = get_logger("synthesis")
 
@@ -67,6 +68,32 @@ def _format_eta(seconds: float) -> str:
 
 class RenderCancelled(Exception):
     """Raised inside a render loop when the job was cancelled."""
+
+
+class RenderBusy(Exception):
+    """Raised when a render or batch is already queued or running."""
+
+
+_ACTIVE_STATES = {"queued", "running"}
+_START_LOCK = threading.Lock()
+
+
+def _ensure_idle() -> None:
+    """One GPU, one render: refuse to start while any job is still active."""
+    for manager in (job_manager, batch_manager):
+        if any(job.state in _ACTIVE_STATES for job in list(manager._jobs.values())):
+            raise RenderBusy("Another render is already running. Wait for it or cancel it first.")
+
+
+def unique_path(directory: Path, filename: str) -> Path:
+    """Returns directory/filename, or name_2.ext, name_3.ext... if taken."""
+    candidate = directory / filename
+    stem, suffix = Path(filename).stem, Path(filename).suffix
+    counter = 2
+    while candidate.exists():
+        candidate = directory / f"{stem}_{counter}{suffix}"
+        counter += 1
+    return candidate
 
 
 def _render_chunks(
@@ -118,7 +145,7 @@ def _render_chunks(
 
     if on_message is not None:
         on_message("Stitching audio chunks with crossfades")
-    stitched = SynthesisWorker._stitch_chunks_with_crossfade(
+    stitched = stitch_chunks(
         rendered,
         sample_rate=sample_rate,
         pause_ms=sentence_pause_ms,
@@ -192,9 +219,11 @@ class JobManager:
             )
         )
         job.message = "Queued"
-        with self._lock:
-            self._jobs[job.id] = job
-            self._prune_locked()
+        with _START_LOCK:
+            _ensure_idle()
+            with self._lock:
+                self._jobs[job.id] = job
+                self._prune_locked()
 
         thread = threading.Thread(
             target=self._run,
@@ -285,8 +314,7 @@ class JobManager:
                 return
             job.total_chunks = max(job.total_chunks, 1)
 
-            from app.api.server import paths as _paths
-            output_path = _paths.history_dir / f"synth_{int(time.time() * 1000)}.wav"
+            output_path = paths.history_dir / f"synth_{int(time.time() * 1000)}.wav"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             try:
                 import soundfile as sf
@@ -437,9 +465,11 @@ class BatchManager:
     ) -> BatchJob:
         job = BatchJob(id=uuid.uuid4().hex, items=items, output_dir=output_dir)
         job.message = "Queued"
-        with self._lock:
-            self._jobs[job.id] = job
-            self._prune_locked()
+        with _START_LOCK:
+            _ensure_idle()
+            with self._lock:
+                self._jobs[job.id] = job
+                self._prune_locked()
 
         thread = threading.Thread(
             target=self._run,
@@ -489,8 +519,7 @@ class BatchManager:
                 return candidate
             except OSError as exc:
                 logger.warning("Could not use output folder %s: %s", candidate, exc)
-        from app.api.server import paths as _paths
-        return _paths.history_dir
+        return paths.history_dir
 
     def _run(
         self,
@@ -518,6 +547,7 @@ class BatchManager:
                     break
 
                 job.current_index = index
+                line_started = time.time()
                 job.message = f"Rendering line {index + 1} of {job.total}: {item.filename}"
                 item.state = "running"
 
@@ -532,8 +562,7 @@ class BatchManager:
                     )
 
                     duration = float(len(stitched) / sample_rate) if sample_rate else 0.0
-                    output_path = directory / item.filename
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    output_path = unique_path(directory, item.filename)
                     try:
                         import soundfile as sf
 
@@ -562,7 +591,7 @@ class BatchManager:
                     item.history_id = entry.id
                     job.completed += 1
 
-                    durations.append(time.time() - started)
+                    durations.append(time.time() - line_started)
                     average = sum(durations) / len(durations)
                     remaining = job.total - (index + 1)
                     job.eta = _format_eta(remaining * average)

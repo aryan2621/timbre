@@ -10,18 +10,19 @@ routers. Business logic lives in ``app.services`` and HTTP contracts live in
 from __future__ import annotations
 
 import os
+import secrets
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.routes import api_router
 from app.core.config import AppConfig, config_manager
 from app.core.logging_setup import get_logger, setup_logging
 from app.engines.registry import engine_registry
-from app.services.voice_service import seed_demo_voice
 
 logger = get_logger("api")
 
@@ -34,7 +35,23 @@ from app.core.paths import paths  # noqa: E402,F401
 from app.data.history_repo import history_repo  # noqa: E402,F401
 from app.data.voice_repo import voice_repo  # noqa: E402,F401
 
-app = FastAPI(title="VoiceClone Studio API", version=API_VERSION)
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    setup_logging(config_manager.config.log_level)
+    logger.info("VoiceClone API %s starting on loopback.", API_VERSION)
+    if not os.environ.get("VOICECLONE_API_TOKEN"):
+        logger.warning("VOICECLONE_API_TOKEN is not set: the API accepts any local caller.")
+    try:
+        yield
+    finally:
+        try:
+            engine_registry.unload_all()
+        except Exception:  # pragma: no cover
+            logger.debug("Engine unload during shutdown failed", exc_info=True)
+        logger.info("VoiceClone API stopped.")
+
+
+app = FastAPI(title="VoiceClone Studio API", version=API_VERSION, lifespan=lifespan)
 
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
@@ -45,32 +62,37 @@ app.add_middleware(
         "tauri://localhost",
         "http://tauri.localhost",
         "https://tauri.localhost",
-        "null",
     ],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+TOKEN_HEADER = "x-voiceclone-token"
+_OPEN_PATHS = {"/api/health"}
+
+
+@app.middleware("http")
+async def require_token(request: Request, call_next):
+    """Rejects API calls that lack the per-launch secret the desktop shell hands us.
+
+    Without it any web page (or local process) could drive the loopback API.
+    The token is read per request so tests can set it; unset means open (dev).
+    """
+    token = os.environ.get("VOICECLONE_API_TOKEN", "")
+    if (
+        token
+        and request.method != "OPTIONS"
+        and request.url.path.startswith("/api/")
+        and request.url.path not in _OPEN_PATHS
+    ):
+        supplied = request.headers.get(TOKEN_HEADER) or request.query_params.get("token", "")
+        if not secrets.compare_digest(supplied, token):
+            return JSONResponse({"detail": "Missing or invalid API token"}, status_code=401)
+    return await call_next(request)
+
+
 app.include_router(api_router)
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    setup_logging(config_manager.config.log_level)
-    logger.info("VoiceClone API %s starting on loopback.", API_VERSION)
-    try:
-        seed_demo_voice()
-    except Exception:  # noqa: BLE001 - never block startup on demo seeding
-        logger.exception("Could not seed the demo voice")
-    try:
-        yield
-    finally:
-        try:
-            engine_registry.unload_all()
-        except Exception:  # pragma: no cover
-            logger.debug("Engine unload during shutdown failed", exc_info=True)
-        logger.info("VoiceClone API stopped.")
 
 
 def main() -> None:

@@ -22,10 +22,8 @@ classifiers = [
 dependencies = [
     "numpy>=1.26.0",
     "scipy>=1.12.0",
-    "sounddevice>=0.4.6",
     "soundfile>=0.12.1",
     "librosa>=0.10.1",
-    "pydub>=0.25.1",
     "noisereduce>=3.0.0",
     "pyloudnorm>=0.1.1",
     "platformdirs>=4.2.0",
@@ -100,21 +98,6 @@ warn_redundant_casts = true
 warn_unused_ignores = false
 no_implicit_optional = true
 check_untyped_defs = false
-exclude = ["^app/audio/player\\.py$"]
-
-# The bundled PySide6 stubs contain invalid Python indentation, so mypy's own
-# parser rejects them. They are skipped rather than type-checked.
-[[tool.mypy.overrides]]
-module = ["PySide6.*"]
-follow_imports = "skip"
-ignore_errors = true
-
-# The Qt worker modules are UI glue and are excluded from checking, but the
-# service layer imports them, so they are skipped on the way in.
-[[tool.mypy.overrides]]
-module = ["app.workers.*", "app.audio.player"]
-follow_imports = "skip"
-ignore_errors = true
 
 # ---------------------------------------------------------------------------
 # vulture - dead code detection

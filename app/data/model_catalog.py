@@ -17,6 +17,8 @@ from pathlib import Path
 from app.data.models import ModelFile, ModelMetadata
 
 _CHATTERBOX = "https://huggingface.co/ResembleAI/chatterbox/resolve/main"
+_XTTS = "https://huggingface.co/coqui/XTTS-v2/resolve/main"
+_F5 = "https://huggingface.co/SWivid/F5-TTS/resolve/main/F5TTS_Base"
 
 CATALOG_MODELS: list[ModelMetadata] = [
     ModelMetadata(
@@ -61,11 +63,15 @@ CATALOG_MODELS: list[ModelMetadata] = [
         license_name="CPML (Strictly Non-Commercial)",
         commercial_allowed=False,
         license_notice="Multi-lingual voice cloner. Commercial use is strictly prohibited by CPML.",
-        download_url="https://huggingface.co/coqui/XTTS-v2/resolve/main/model.pth",
-        expected_sha256="",
-        total_bytes=1_800 * 1024 * 1024,
+        download_url=f"{_XTTS}/model.pth",
+        expected_sha256="c7ea20001c6a0a841c77e252d8409f6a74fb423e79b3206a0771ba5989776187",
+        total_bytes=1_867_929_118,
         local_dir="xtts_v2",
         min_ram_gb=12,
+        files=[
+            ModelFile("model.pth", f"{_XTTS}/model.pth", 1_867_929_118,
+                      "c7ea20001c6a0a841c77e252d8409f6a74fb423e79b3206a0771ba5989776187"),
+        ],
     ),
     ModelMetadata(
         id="f5-tts",
@@ -74,11 +80,15 @@ CATALOG_MODELS: list[ModelMetadata] = [
         license_name="MIT License (Commercial Allowed)",
         commercial_allowed=True,
         license_notice="Diffusion transformer zero-shot cloner with Flow Matching.",
-        download_url="https://huggingface.co/SWivid/F5-TTS/resolve/main/F5TTS_Base/model_1200000.safetensors",
-        expected_sha256="",
-        total_bytes=1_250 * 1024 * 1024,
+        download_url=f"{_F5}/model_1200000.safetensors",
+        expected_sha256="4180310f91d592cee4bc14998cd37c781f779cf105e8ca8744d9bd48ca7046ae",
+        total_bytes=1_348_645_281,
         local_dir="f5_tts",
         min_ram_gb=6,
+        files=[
+            ModelFile("model_1200000.safetensors", f"{_F5}/model_1200000.safetensors", 1_348_645_281,
+                      "4180310f91d592cee4bc14998cd37c781f779cf105e8ca8744d9bd48ca7046ae"),
+        ],
     ),
 ]
 
@@ -89,13 +99,11 @@ def model_local_path(model: ModelMetadata, models_dir: Path) -> Path:
 
 
 def is_model_present(model: ModelMetadata, models_dir: Path) -> bool:
-    """True when every listed file exists (single-file models: any non-.part file)."""
+    """True when every listed file exists (``.part`` files never count)."""
     model_path = model_local_path(model, models_dir)
     if not model_path.exists():
         return False
-    if model.files:
-        return all((model_path / f.name).is_file() for f in model.files)
-    return any(f.is_file() and f.suffix != ".part" for f in model_path.iterdir())
+    return all((model_path / f.name).is_file() for f in model.files)
 
 
 def get_model(model_id: str) -> ModelMetadata | None:

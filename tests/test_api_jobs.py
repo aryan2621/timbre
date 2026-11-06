@@ -15,6 +15,7 @@ import numpy as np
 from fastapi.testclient import TestClient
 
 from app.api import server as server_mod
+from app.services import synthesis_service
 from app.engines.base import EngineLicense, SynthesisParameters, TTSEngine
 
 
@@ -88,7 +89,7 @@ class _JobApiTestCase(unittest.TestCase):
             mock.patch.object(server_mod.engine_registry, "get_engine", return_value=self.engine),
             mock.patch.object(server_mod.voice_repo, "get_profile_by_id", return_value=self.profile),
             mock.patch.object(
-                server_mod,
+                synthesis_service,
                 "paths",
                 SimpleNamespace(
                     history_dir=Path(self.tmp.name),
