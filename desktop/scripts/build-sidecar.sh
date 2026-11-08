@@ -18,6 +18,10 @@ cd "$ROOT"
   --collect-all pocket_tts --copy-metadata pocket-tts \
   --collect-submodules diffusers --copy-metadata diffusers \
   --collect-submodules transformers.models.musicgen \
+  --copy-metadata transformers --copy-metadata requests --copy-metadata tqdm \
+  --copy-metadata regex --copy-metadata packaging --copy-metadata filelock \
+  --copy-metadata numpy --copy-metadata tokenizers --copy-metadata huggingface-hub \
+  --copy-metadata safetensors --copy-metadata pyyaml \
   --collect-all keyring --copy-metadata keyring \
   --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto \
   --hidden-import uvicorn.protocols.http.auto --hidden-import uvicorn.lifespan.on \
