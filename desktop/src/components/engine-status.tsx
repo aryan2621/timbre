@@ -1,4 +1,4 @@
-import { Cpu } from "lucide-react";
+import { Cpu, Loader2 } from "lucide-react";
 import { cn } from "cn";
 import { useEngineStatus } from "@/lib/engine-status";
 
@@ -13,22 +13,22 @@ export function EngineStatusBlock({ className }: { className?: string }) {
       )}
     >
       <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            "size-2 shrink-0 rounded-full",
-            status === "online"
-              ? "bg-status-success"
-              : status === "offline"
-                ? "bg-destructive"
-                : "bg-status-warning",
-          )}
-        />
+        {status === "connecting" ? (
+          <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
+        ) : (
+          <span
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              status === "online" ? "bg-status-success" : "bg-destructive",
+            )}
+          />
+        )}
         <span className="text-xs font-medium">
           {status === "online"
             ? "Engine ready"
             : status === "offline"
               ? "Engine offline"
-              : "Connecting…"}
+              : "Starting engine…"}
         </span>
       </div>
 

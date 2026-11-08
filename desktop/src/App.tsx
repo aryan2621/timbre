@@ -9,8 +9,9 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { AppProvider, useApp } from "@/lib/app-context";
-import { EngineStatusProvider } from "@/lib/engine-status";
+import { EngineStatusProvider, useEngineStatus } from "@/lib/engine-status";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import { useHashRoute } from "@/lib/use-router";
 import { useHotkeys } from "@/lib/use-hotkeys";
@@ -96,8 +97,11 @@ function Shell() {
     document.title = `Timbre · ${page.charAt(0).toUpperCase()}${page.slice(1)}`;
   }, [page]);
 
+  const { status } = useEngineStatus();
+
   return (
     <SidebarProvider>
+      <LoadingOverlay show={status === "connecting"} label="Starting engine…" />
       <AppSidebar
         page={page}
         onNavigate={navigate}

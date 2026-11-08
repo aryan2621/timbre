@@ -1,14 +1,17 @@
 import { Loader2 } from "lucide-react";
 
-export function LoadingOverlay({ show }: { show: boolean }) {
+export function LoadingOverlay({ show, label }: { show: boolean; label?: string }) {
   if (!show) return null;
   return (
     <div
       role="status"
-      aria-label="Loading"
+      aria-label={label ?? "Loading"}
       className="fixed inset-0 z-50 grid place-items-center bg-background/60 cursor-wait"
     >
-      <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        {label ? <p className="text-sm text-muted-foreground">{label}</p> : null}
+      </div>
     </div>
   );
 }

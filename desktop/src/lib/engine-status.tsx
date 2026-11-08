@@ -37,6 +37,8 @@ interface EngineStatusValue {
 const EngineStatusContext = createContext<EngineStatusValue | null>(null);
 
 const POLL_INTERVAL = 5000;
+const STARTUP_POLL_INTERVAL = 1000;
+const STARTUP_GRACE_MS = 120_000;
 
 export function EngineStatusProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<EngineConnection>("connecting");
@@ -44,6 +46,12 @@ export function EngineStatusProvider({ children }: { children: ReactNode }) {
   const [lastChecked, setLastChecked] = useState<number | null>(null);
   const [checking, setChecking] = useState(true);
   const mounted = useRef(true);
+  const online = status === "online";
+  const startedAt = useRef(0);
+  const everOnline = useRef(false);
+
+  const isStarting = () =>
+    !everOnline.current && Date.now() - startedAt.current < STARTUP_GRACE_MS;
 
   const refresh = useCallback(() => {
     let cancelled = false;
@@ -51,7 +59,8 @@ export function EngineStatusProvider({ children }: { children: ReactNode }) {
       try {
         const healthy = await checkHealth();
         if (cancelled || !mounted.current) return;
-        setStatus(healthy ? "online" : "offline");
+        if (healthy) everOnline.current = true;
+        setStatus(healthy ? "online" : isStarting() ? "connecting" : "offline");
         setLastChecked(Date.now());
         if (healthy) {
           const details = await getHealthDetails();
@@ -60,7 +69,7 @@ export function EngineStatusProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch {
-        if (!cancelled && mounted.current) setStatus("offline");
+        if (!cancelled && mounted.current) setStatus(isStarting() ? "connecting" : "offline");
       } finally {
         if (!cancelled && mounted.current) setChecking(false);
       }
@@ -72,13 +81,17 @@ export function EngineStatusProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     mounted.current = true;
+    if (startedAt.current === 0) startedAt.current = Date.now();
     refresh();
-    const timer = window.setInterval(refresh, POLL_INTERVAL);
+    const timer = window.setInterval(
+      refresh,
+      online ? POLL_INTERVAL : STARTUP_POLL_INTERVAL,
+    );
     return () => {
       mounted.current = false;
       window.clearInterval(timer);
     };
-  }, [refresh]);
+  }, [refresh, online]);
 
   const value = useMemo<EngineStatusValue>(
     () => ({ status, device, lastChecked, checking, refresh }),
