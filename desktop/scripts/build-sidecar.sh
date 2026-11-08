@@ -16,6 +16,8 @@ cd "$ROOT"
   --collect-submodules app \
   --collect-all soundfile --collect-all librosa \
   --collect-all pocket_tts --copy-metadata pocket-tts \
+  --collect-submodules diffusers --copy-metadata diffusers \
+  --collect-submodules transformers.models.musicgen \
   --collect-all keyring --copy-metadata keyring \
   --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto \
   --hidden-import uvicorn.protocols.http.auto --hidden-import uvicorn.lifespan.on \

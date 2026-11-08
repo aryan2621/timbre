@@ -36,6 +36,8 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/pip install -e '.[dev]'
+          .venv/bin/pip install 'diffusers>=0.31' torchsde
+          .venv/bin/pip install --no-deps pocket-tts==4.0.1
 
       - name: Python tests
         run: .venv/bin/pytest -q

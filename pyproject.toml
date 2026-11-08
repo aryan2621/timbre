@@ -31,7 +31,11 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.34.0",
     "chatterbox-tts==0.1.7",  # the voice engine; pins torch 2.6 itself
-    "pocket-tts==4.0.1",  # fast CPU voice engine; installed with --no-deps (it asks for numpy 2)
+    "einops>=0.8",  # Pocket TTS needs it; the package itself is installed with --no-deps (README)
+    "safetensors>=0.4",
+    "typer>=0.12",
+    "python-multipart>=0.0.9",
+    "requests>=2.31",
     "sentencepiece>=0.2.1",
     "setuptools<81",  # perth (Chatterbox watermark) imports pkg_resources, removed in 81
   ]
