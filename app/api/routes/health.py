@@ -18,7 +18,7 @@ def health() -> dict[str, Any]:
     info = device_manager.get_device_info()
     return {
         "ok": True,
-        "version": "0.1.0",
+        "version": "0.1.1",
         "device": {
             "type": info.device_type,
             "name": info.device_name,
