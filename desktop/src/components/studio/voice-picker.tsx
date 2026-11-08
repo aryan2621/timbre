@@ -78,7 +78,6 @@ export function VoicePicker({
         </ComboboxEmpty>
         <ComboboxList>
           {(voice: VoiceProfile) => {
-            const quality = voice.clips[0]?.quality_score ?? 0;
             return (
               <ComboboxItem key={voice.id} value={voice} className="gap-2.5 py-2">
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-surface-accent text-primary">
@@ -88,7 +87,7 @@ export function VoicePicker({
                   <span className="truncate font-medium">{voice.name}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     {voice.language.toUpperCase()} · {voice.clips.length} sample
-                    {voice.clips.length === 1 ? "" : "s"} · quality {quality}/100
+                    {voice.clips.length === 1 ? "" : "s"}
                   </span>
                 </span>
                 {voice.consent_confirmed ? (

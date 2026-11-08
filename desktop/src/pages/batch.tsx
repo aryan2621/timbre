@@ -1,5 +1,5 @@
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useEffect, useRef } from "react";
-import { motion } from "motion/react";
 import {
   CircleCheck,
   CircleDashed,
@@ -14,12 +14,10 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -36,7 +34,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VoicePicker } from "@/components/studio/voice-picker";
 import { useApp, useAppActions } from "@/lib/app-context";
 import { useEngineStatus } from "@/lib/engine-status";
@@ -53,27 +50,27 @@ const STATE_STYLE: Record<
 > = {
   pending: {
     label: "Queued",
-    className: "border-border text-muted-foreground",
+    className: "text-muted-foreground",
     icon: CircleDashed,
   },
   running: {
     label: "Rendering",
-    className: "border-primary/35 bg-surface-accent text-primary",
+    className: "text-muted-foreground",
     icon: Loader2,
   },
   done: {
     label: "Rendered",
-    className: "border-status-success/30 bg-status-success/10 text-status-success",
+    className: "text-muted-foreground",
     icon: CircleCheck,
   },
   failed: {
     label: "Failed",
-    className: "border-destructive/30 bg-destructive/10 text-destructive",
+    className: "text-destructive",
     icon: CircleX,
   },
   cancelled: {
     label: "Cancelled",
-    className: "border-border text-muted-foreground",
+    className: "text-muted-foreground",
     icon: Square,
   },
 };
@@ -140,6 +137,7 @@ export function BatchPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <LoadingOverlay show={loading} />
       <PageHeader
         title="Batch"
         description="Render a whole script file into one file per line. The queue runs on the local engine."
@@ -189,7 +187,7 @@ export function BatchPage() {
       />
 
       {/* ------------------------------------------------------- settings */}
-      <Card className="shadow-[var(--shadow-soft)]">
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Queue settings</CardTitle>
         </CardHeader>
@@ -259,7 +257,7 @@ export function BatchPage() {
       </Card>
 
       {/* ---------------------------------------------------------- queue */}
-      <Card className="shadow-[var(--shadow-soft)]">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle className="text-base">Generation queue</CardTitle>
@@ -270,25 +268,18 @@ export function BatchPage() {
                   {failedCount > 0 ? ` · ${failedCount} failed` : ""}
                 </span>
               ) : null}
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Clear the queue"
-                      onClick={() => {
-                        clearScript();
-                        batchJob.reset();
-                      }}
-                      disabled={running}
-                    />
-                  }
-                >
-                  <Trash2 />
-                </TooltipTrigger>
-                <TooltipContent>Clear the queue</TooltipContent>
-              </Tooltip>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Clear the queue"
+                onClick={() => {
+                  clearScript();
+                  batchJob.reset();
+                }}
+                disabled={running}
+              >
+                <Trash2 />
+              </Button>
             </div>
           </div>
 
@@ -323,12 +314,6 @@ export function BatchPage() {
                   rendered audio file.
                 </EmptyDescription>
               </EmptyHeader>
-              <EmptyContent>
-                <Button onClick={() => void importScript()}>
-                  <FileUp />
-                  Import a script
-                </Button>
-              </EmptyContent>
             </Empty>
           ) : (
             <ul className="divide-y divide-border/70">
@@ -338,14 +323,8 @@ export function BatchPage() {
                 const style = STATE_STYLE[state] ?? STATE_STYLE.pending;
                 const StateIcon = style.icon;
                 return (
-                  <motion.li
+                  <li
                     key={`${line.index}-${line.filename}`}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.16,
-                      delay: Math.min(index * 0.012, 0.2),
-                    }}
                     className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/40"
                   >
                     <span
@@ -377,16 +356,15 @@ export function BatchPage() {
                         : "—"}
                     </span>
 
-                    <Badge
-                      variant="outline"
-                      className={`shrink-0 gap-1 ${style.className}`}
+                    <span
+                      className={`inline-flex shrink-0 items-center gap-1 text-xs ${style.className}`}
                     >
                       <StateIcon
                         className={`size-3 ${state === "running" ? "animate-spin" : ""}`}
                       />
                       {style.label}
-                    </Badge>
-                  </motion.li>
+                    </span>
+                  </li>
                 );
               })}
             </ul>

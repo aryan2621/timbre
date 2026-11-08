@@ -1,5 +1,5 @@
 /**
- * Centralized API layer for VoiceClone Studio.
+ * Centralized API layer for Timbre.
  *
  * All frontend components should use this layer instead of calling
  * the raw fetch API. This ensures a single source of truth for
@@ -19,6 +19,16 @@ import type { AppSettings } from "@/lib/types";
 import type { SynthesisParams } from "@/lib/types";
 import type { JobStatus } from "@/lib/types";
 import type { BatchJob } from "@/lib/types";
+import type {
+  HuggingFaceStatus,
+  AgentProfile,
+  AgentTurn,
+  McpServerDraft,
+  SoundEngineInfo,
+  SoundKind,
+  SoundParams,
+  SystemSpecs,
+} from "@/lib/types";
 
 const API_BASE =
   import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8756";
@@ -42,6 +52,18 @@ function withToken(url: string): string {
   return `${url}${url.includes("?") ? "&" : "?"}token=${apiToken}`;
 }
 
+async function readErrorDetail(response: Response): Promise<string> {
+  const text = await response.text().catch(() => "");
+  try {
+    const parsed: unknown = JSON.parse(text);
+    const detail = (parsed as { detail?: unknown }).detail;
+    if (typeof detail === "string") return detail;
+  } catch {
+    /* not JSON: show the raw body */
+  }
+  return text;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   await tokenReady;
   const response = await fetch(`${API_BASE}${path}`, {
@@ -53,8 +75,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(detail || `${response.status} ${response.statusText}`);
+    throw new Error(
+      (await readErrorDetail(response)) || `${response.status} ${response.statusText}`,
+    );
   }
   return (await response.json()) as T;
 }
@@ -180,6 +203,25 @@ async function cancelDownload(jobId: string): Promise<DownloadJob> {
   return request<DownloadJob>(`/api/downloads/${jobId}/cancel`, { method: "POST" });
 }
 
+async function getSystemSpecs(): Promise<SystemSpecs> {
+  return request<SystemSpecs>("/api/system");
+}
+
+async function getHuggingFaceStatus(): Promise<HuggingFaceStatus> {
+  return request<HuggingFaceStatus>("/api/credentials/hugging-face");
+}
+
+async function saveHuggingFaceToken(token: string): Promise<HuggingFaceStatus> {
+  return request<HuggingFaceStatus>("/api/credentials/hugging-face", {
+    method: "PUT",
+    body: JSON.stringify({ token }),
+  });
+}
+
+async function removeHuggingFaceToken(): Promise<HuggingFaceStatus> {
+  return request<HuggingFaceStatus>("/api/credentials/hugging-face", { method: "DELETE" });
+}
+
 /** Settings */
 async function getSettings(): Promise<AppSettings> {
   return request<AppSettings>("/api/settings");
@@ -206,6 +248,70 @@ async function synthesize(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+async function listSoundEngines(): Promise<SoundEngineInfo[]> {
+  return request<SoundEngineInfo[]>("/api/sounds/engines");
+}
+
+async function generateSound(payload: {
+  engine_name: string;
+  prompt: string;
+  kind: SoundKind;
+  params: SoundParams;
+}): Promise<JobStatus> {
+  return request<JobStatus>("/api/sounds", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+async function listAgents(): Promise<AgentProfile[]> {
+  return request<AgentProfile[]>("/api/agents");
+}
+
+async function createAgent(payload: {
+  name: string;
+  voice_id: number | null;
+  system_prompt: string;
+  icon: string;
+  llm_model: string;
+  mcp_servers: McpServerDraft[];
+}): Promise<AgentProfile> {
+  return request<AgentProfile>("/api/agents", { method: "POST", body: JSON.stringify(payload) });
+}
+
+async function testMcpServer(url: string, token: string): Promise<string[]> {
+  const { tools } = await request<{ tools: string[] }>("/api/agents/mcp/test", {
+    method: "POST",
+    body: JSON.stringify({ url, token }),
+  });
+  return tools;
+}
+
+async function deleteAgent(id: number): Promise<void> {
+  await request(`/api/agents/${id}`, { method: "DELETE" });
+}
+
+async function warmAgents(): Promise<void> {
+  await request("/api/agents/warm", { method: "POST" });
+}
+
+async function transcribe(wav: Blob): Promise<string> {
+  const { text } = await request<{ text: string }>("/api/agents/transcribe", {
+    method: "POST",
+    body: wav,
+    headers: { "Content-Type": "audio/wav" },
+  });
+  return text;
+}
+
+async function agentReply(id: number, messages: AgentTurn[]): Promise<string> {
+  const { text } = await request<{ text: string }>(`/api/agents/${id}/reply`, {
+    method: "POST",
+    body: JSON.stringify({ messages }),
+  });
+  return text;
 }
 
 async function getJob(id: string): Promise<JobStatus> {
@@ -280,9 +386,22 @@ export const api = {
   deleteModel,
   getDownload,
   cancelDownload,
+  getSystemSpecs,
+  getHuggingFaceStatus,
+  saveHuggingFaceToken,
+  removeHuggingFaceToken,
   getSettings,
   updateSettings,
   synthesize,
+  listSoundEngines,
+  listAgents,
+  createAgent,
+  deleteAgent,
+  testMcpServer,
+  transcribe,
+  warmAgents,
+  agentReply,
+  generateSound,
   getJob,
   cancelJob,
   startBatch,

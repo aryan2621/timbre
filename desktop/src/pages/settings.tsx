@@ -1,12 +1,10 @@
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import type { ReactNode } from "react";
-import { motion } from "motion/react";
 import {
-  Keyboard,
   RotateCcw,
   Save,
   Search,
   Settings2,
-  ShieldCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,10 +16,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
-import { Kbd } from "@/components/ui/kbd";
 import { PageHeader } from "@/components/ui/page-header";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -32,15 +27,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useEngineStatus } from "@/lib/engine-status";
-import { SHORTCUTS, formatShortcut, type ShortcutGroup } from "@/lib/shortcuts";
 import { useSettings } from "@/hooks/use-settings";
-
-const SHORTCUT_GROUPS: ShortcutGroup[] = [
-  "Navigate",
-  "Studio",
-  "Library",
-  "System",
-];
 
 function SettingRow({
   title,
@@ -135,9 +122,7 @@ export function SettingsPage() {
   const {
     settings,
     activeSection,
-    setActiveSection,
     search,
-    setSearch,
     loading,
     saving,
     theme,
@@ -146,16 +131,16 @@ export function SettingsPage() {
     isSectionDirty,
     resetSection,
     saveSection,
-    filteredSections,
     visibleSection,
     dirtyCount,
   } = useSettings(online);
 
   return (
     <div className="flex flex-col gap-4">
+      <LoadingOverlay show={loading} />
       <PageHeader
         title="Settings"
-        description="Engine defaults, appearance and keyboard shortcuts. Each section saves on its own."
+        description="Engine defaults and appearance. Each section saves on its own."
         icon={Settings2}
         meta={
           dirtyCount > 0 ? (
@@ -166,113 +151,10 @@ export function SettingsPage() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-        {/* ------------------------------------------------------ section rail */}
-        <aside className="space-y-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Find a setting"
-              aria-label="Search the settings"
-              className="pl-8"
-            />
-          </div>
-
-          <nav className="space-y-0.5" aria-label="Settings sections">
-            {filteredSections.map((section) => {
-              const active = section.id === activeSection;
-              const dirty = isSectionDirty(section);
-              return (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={`relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors ${
-                    active
-                      ? "bg-surface-raised font-medium text-foreground shadow-[0_1px_2px_rgb(31_30_29/0.05)]"
-                      : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground"
-                  }`}
-                >
-                  {active ? (
-                    <motion.span
-                      layoutId="settings-indicator"
-                      className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
-                      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                    />
-                  ) : null}
-                  <section.icon className="size-4 shrink-0" />
-                  <span className="flex-1 truncate">{section.label}</span>
-                  {dirty ? (
-                    <span className="size-1.5 shrink-0 rounded-full bg-status-warning" />
-                  ) : null}
-                </button>
-              );
-            })}
-
-            <Separator className="my-2" />
-
-            <button
-              type="button"
-              onClick={() => setActiveSection("shortcuts")}
-              className={`relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors ${
-                activeSection === "shortcuts"
-                  ? "bg-surface-raised font-medium text-foreground shadow-[0_1px_2px_rgb(31_30_29/0.05)]"
-                  : "text-muted-foreground hover:bg-surface-raised/60 hover:text-foreground"
-              }`}
-            >
-              {activeSection === "shortcuts" ? (
-                <motion.span
-                  layoutId="settings-indicator"
-                  className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                />
-              ) : null}
-              <Keyboard className="size-4 shrink-0" />
-              <span className="flex-1 truncate">Shortcuts</span>
-            </button>
-          </nav>
-        </aside>
-
+      <div className="grid gap-4">
         {/* ---------------------------------------------------------- content */}
         <div className="min-w-0">
-          {activeSection === "shortcuts" ? (
-            <Card className="shadow-[var(--shadow-soft)]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Keyboard className="size-4 text-primary" />
-                  Keyboard shortcuts
-                </CardTitle>
-                <CardDescription>
-                  The whole studio is reachable without the mouse. Press ⇧? at any
-                  time to open this list.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                {SHORTCUT_GROUPS.map((group) => (
-                  <section key={group} className="space-y-1">
-                    <h3 className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                      {group}
-                    </h3>
-                    {SHORTCUTS.filter((shortcut) => shortcut.group === group).map(
-                      (shortcut) => (
-                        <div
-                          key={shortcut.id}
-                          className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[13px] transition-colors hover:bg-muted/60"
-                        >
-                          <span className="text-muted-foreground">
-                            {shortcut.label}
-                          </span>
-                          <Kbd>{formatShortcut(shortcut.combo)}</Kbd>
-                        </div>
-                      ),
-                    )}
-                  </section>
-                ))}
-              </CardContent>
-            </Card>
-          ) : !visibleSection ? (
+          {!visibleSection ? (
             <Empty className="border border-dashed bg-surface-inset/60 py-14">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -327,7 +209,6 @@ export function SettingsPage() {
                   <>
                     <SettingRow
                       title="Theme"
-                      description="Dark is tuned for long editing sessions. The header toggle switches between light and dark instantly."
                     >
                       <Select
                         value={theme}
@@ -396,7 +277,6 @@ export function SettingsPage() {
 
                     <SettingRow
                       title="Clear the device cache after a job"
-                      description="Frees graphics memory as soon as a render finishes."
                     >
                       <Switch
                         checked={settings.clear_device_cache_after_job}
@@ -429,7 +309,6 @@ export function SettingsPage() {
                   <>
                     <SettingRow
                       title="Diagnostic log detail"
-                      description="Choose Debug for verbose performance timings or Info for standard operations."
                     >
                       <Select
                         value={settings.log_level}
@@ -458,15 +337,6 @@ export function SettingsPage() {
                         </SelectContent>
                       </Select>
                     </SettingRow>
-
-                    <div className="flex items-start gap-3 py-3 text-[12px] leading-relaxed text-muted-foreground">
-                      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-status-success" />
-                      <p>
-                        All audio, profiles and settings stay on this computer.
-                        There is no telemetry, no account and no cloud upload path
-                        in the engine.
-                      </p>
-                    </div>
                   </>
                 ) : null}
               </CardContent>

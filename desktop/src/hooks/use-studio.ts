@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { useActiveModels } from "@/lib/active-models";
 import { formatDuration } from "@/lib/format";
 import { demoList, mockEngines, mockVoices } from "@/lib/mock";
 import type {
@@ -114,12 +115,18 @@ export interface EngineSelection {
  */
 export function useEngineSelection(engines: EngineInfo[]): EngineSelection {
   const [engineName, setEngineName] = useState("Chatterbox TTS");
+  const chosenModel = useActiveModels()["voice-cloning"];
   const [params, setParams] = useState<SynthesisParams>(mockEngines[0].default_params);
 
   const activeEngine = useMemo(
     () => engines.find((engine) => engine.name === engineName) ?? engines[0],
     [engineName, engines],
   );
+
+  useEffect(() => {
+    const chosen = engines.find((engine) => engine.model_id === chosenModel && engine.is_available);
+    if (chosen) setEngineName(chosen.name);
+  }, [engines, chosenModel]);
 
   useEffect(() => {
     if (!engines.length) return;
@@ -170,7 +177,7 @@ export function useEngineSelection(engines: EngineInfo[]): EngineSelection {
  * out chunks that already include the pauses and fades, so they join
  * seamlessly. `prime` must run inside the click handler (audio autoplay rules).
  */
-function useLiveAudio(job: JobStatus | null) {
+export function useLiveAudio(job: JobStatus | null) {
   const contextRef = useRef<AudioContext | null>(null);
   const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const nextTimeRef = useRef(0);
@@ -248,7 +255,7 @@ function useLiveAudio(job: JobStatus | null) {
     [stop],
   );
 
-  return { prime, stop };
+  return useMemo(() => ({ prime, stop }), [prime, stop]);
 }
 
 /** Consecutive failed status polls before a render is declared lost. */
@@ -277,6 +284,7 @@ export interface SynthesisJob {
   isRunning: boolean;
   synthesize: () => Promise<void>;
   cancel: () => Promise<void>;
+  stopLive: () => void;
 }
 
 /**
@@ -456,5 +464,6 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
     isRunning,
     synthesize,
     cancel,
+    stopLive: live.stop,
   };
 }

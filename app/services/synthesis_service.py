@@ -90,7 +90,9 @@ _START_LOCK = threading.Lock()
 
 def _ensure_idle() -> None:
     """One GPU, one render: refuse to start while any job is still active."""
-    for manager in (job_manager, batch_manager):
+    from app.services.sound_service import sound_manager
+
+    for manager in (job_manager, batch_manager, sound_manager):
         if any(job.state in _ACTIVE_STATES for job in list(manager._jobs.values())):
             raise RenderBusy("Another render is already running. Wait for it or cancel it first.")
 

@@ -59,9 +59,26 @@ CREATE TABLE IF NOT EXISTS history (
     FOREIGN KEY(voice_id) REFERENCES voice_profiles(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS agents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    voice_id INTEGER,
+    system_prompt TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(voice_id) REFERENCES voice_profiles(id) ON DELETE SET NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_voice_clips_profile ON voice_clips(profile_id);
 CREATE INDEX IF NOT EXISTS idx_history_created ON history(created_at DESC);
 """
+
+
+MIGRATIONS = [
+    ("history", "kind", "TEXT NOT NULL DEFAULT 'speech'"),
+    ("agents", "icon", "TEXT NOT NULL DEFAULT 'bot'"),
+    ("agents", "llm_model", "TEXT NOT NULL DEFAULT 'agent-llm'"),
+    ("agents", "mcp_servers", "TEXT NOT NULL DEFAULT '[]'"),
+]
 
 
 class DatabaseManager:
@@ -103,12 +120,20 @@ class DatabaseManager:
         finally:
             cursor.close()
 
+    @staticmethod
+    def _add_missing_columns(conn: sqlite3.Connection) -> None:
+        for table, column, definition in MIGRATIONS:
+            existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
     def initialize_schema(self) -> None:
         """Executes DDL commands to ensure all tables and indexes exist."""
         with self._lock:
             try:
                 conn = self._get_connection()
                 conn.executescript(SCHEMA_SQL)
+                self._add_missing_columns(conn)
                 conn.commit()
                 logger.info("Database schema initialized successfully at %s", self.db_path)
             except Exception as e:

@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
+import { settingsNav } from "@/lib/settings-nav";
 import { AppSidebar } from "@/components/app-shell/app-sidebar";
 import { AppHeader } from "@/components/app-shell/app-header";
 import { CommandPalette } from "@/components/app-shell/command-palette";
@@ -21,6 +22,7 @@ import { pageVariants } from "@/lib/motion";
 const StudioPage = lazy(() => import("@/pages/studio").then((m) => ({ default: m.StudioPage })));
 const VoicesPage = lazy(() => import("@/pages/voices").then((m) => ({ default: m.VoicesPage })));
 const BatchPage = lazy(() => import("@/pages/batch").then((m) => ({ default: m.BatchPage })));
+const AgentsPage = lazy(() => import("@/pages/agents").then((m) => ({ default: m.AgentsPage })));
 const HistoryPage = lazy(() => import("@/pages/history").then((m) => ({ default: m.HistoryPage })));
 const ModelsPage = lazy(() => import("@/pages/models").then((m) => ({ default: m.ModelsPage })));
 const SettingsPage = lazy(() => import("@/pages/settings").then((m) => ({ default: m.SettingsPage })));
@@ -85,9 +87,13 @@ function Shell() {
     ),
   );
 
+  useEffect(() => {
+    if (page !== "settings") settingsNav.setReturnPage(page);
+  }, [page]);
+
   // Keep the document title in sync with the current screen.
   useEffect(() => {
-    document.title = `VoiceClone Studio · ${page.charAt(0).toUpperCase()}${page.slice(1)}`;
+    document.title = `Timbre · ${page.charAt(0).toUpperCase()}${page.slice(1)}`;
   }, [page]);
 
   return (
@@ -103,24 +109,22 @@ function Shell() {
 
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1440px] p-4 md:p-6">
-            <AnimatePresence mode="wait">
               <motion.div
                 key={page}
                 variants={pageVariants}
                 initial="initial"
                 animate="animate"
-                exit="exit"
               >
                 <Suspense fallback={<PageSkeleton />}>
                   {page === "studio" && <StudioPage />}
                   {page === "voices" && <VoicesPage />}
                   {page === "batch" && <BatchPage />}
+                  {page === "agents" && <AgentsPage />}
                   {page === "history" && <HistoryPage />}
                   {page === "models" && <ModelsPage />}
                   {page === "settings" && <SettingsPage />}
                 </Suspense>
               </motion.div>
-            </AnimatePresence>
           </div>
         </main>
       </SidebarInset>

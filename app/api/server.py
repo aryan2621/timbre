@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -22,7 +23,8 @@ from fastapi.responses import JSONResponse
 from app.api.routes import api_router
 from app.core.config import AppConfig, config_manager
 from app.core.logging_setup import get_logger, setup_logging
-from app.engines.registry import engine_registry
+from app.engines.registry import engine_registry, sound_registry
+from app.services import agent_service
 
 logger = get_logger("api")
 
@@ -47,6 +49,8 @@ async def lifespan(_: FastAPI):
     finally:
         try:
             engine_registry.unload_all()
+            sound_registry.unload_all()
+            agent_service.stop_all()
         except Exception:  # pragma: no cover
             logger.debug("Engine unload during shutdown failed", exc_info=True)
         logger.info("VoiceClone API stopped.")
@@ -91,6 +95,12 @@ async def require_token(request: Request, call_next):
         if not secrets.compare_digest(supplied, token):
             return JSONResponse({"detail": "Missing or invalid API token"}, status_code=401)
     return await call_next(request)
+
+
+@app.exception_handler(RequestValidationError)
+async def hide_rejected_input(_: Request, exc: RequestValidationError) -> JSONResponse:
+    errors = [{key: value for key, value in error.items() if key not in {"input", "ctx", "url"}} for error in exc.errors()]
+    return JSONResponse({"detail": errors}, status_code=422)
 
 
 app.include_router(api_router)

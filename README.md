@@ -7,6 +7,8 @@ A local, offline desktop app for voice cloning and text-to-speech. Give it 5–3
 - **Batch:** render many lines from `.txt`, `.csv` or `.srt` files into one folder.
 - **History:** every render is kept; replay or export it as WAV.
 - **Consent required:** a voice profile can't be created without confirming permission. Output carries a Perth watermark.
+- **Sounds:** describe a sound effect or a piece of music, set its length (up to 47 s) and render it with [Stable Audio Open](https://huggingface.co/stabilityai/stable-audio-open-1.0).
+- **Music:** [ACE-Step 1.5](https://huggingface.co/ACE-Step/Ace-Step1.5) makes songs up to four minutes, with optional lyrics. It runs on the bundled native `ace-server` (built by `desktop/scripts/build-native-servers.sh`), so nothing is installed besides the 5.6 GB of weights.
 - **Engine:** [Chatterbox](https://github.com/resemble-ai/chatterbox) (MIT, 23 languages). Other engines can be added behind `app/engines/base.py`.
 
 Stack: a Tauri 2 + React desktop shell talking to a local FastAPI backend in Python. The shell starts the backend itself, with a random per-launch token.
@@ -32,6 +34,14 @@ python3.12 -m venv .venv
 
 cd desktop && pnpm install
 ```
+
+Sounds need two more packages. Chatterbox pins an older `diffusers`, so they go in as a second step (pip prints a version warning for Chatterbox, which can be ignored):
+
+```bash
+.venv/bin/pip install 'diffusers>=0.31' torchsde
+```
+
+Stable Audio Open is gated on Hugging Face: accept its licence on the model page, create your own read-only access token, and paste it on the **Models** page. The token is kept in the system keychain (a private file if none is available), is only sent to huggingface.co, and is never shown again. **Models** also checks your RAM, GPU and free disk and only offers downloads that fit this machine.
 
 For NVIDIA GPUs install a CUDA build of PyTorch first (see pytorch.org), then the command above.
 

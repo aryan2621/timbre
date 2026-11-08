@@ -8,14 +8,23 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response
 
+from app.services.sound_service import sound_manager
 from app.services.synthesis_service import job_manager
 
 router = APIRouter()
 
 
+def _find_job(job_id: str):
+    for manager in (job_manager, sound_manager):
+        job = manager.get(job_id)
+        if job is not None:
+            return manager, job
+    return None, None
+
+
 @router.get("/api/jobs/{job_id}")
 def get_job(job_id: str) -> dict[str, Any]:
-    job = job_manager.get(job_id)
+    _, job = _find_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job.to_dict()
@@ -23,7 +32,8 @@ def get_job(job_id: str) -> dict[str, Any]:
 
 @router.post("/api/jobs/{job_id}/cancel")
 def cancel_job(job_id: str) -> dict[str, Any]:
-    job = job_manager.cancel(job_id)
+    manager, _ = _find_job(job_id)
+    job = manager.cancel(job_id) if manager else None
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job.to_dict()
@@ -31,7 +41,7 @@ def cancel_job(job_id: str) -> dict[str, Any]:
 
 @router.get("/api/jobs/{job_id}/audio")
 def job_audio(job_id: str) -> FileResponse:
-    job = job_manager.get(job_id)
+    _, job = _find_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.state != "done" or not job.audio_path or not os.path.exists(job.audio_path):

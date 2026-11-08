@@ -81,26 +81,19 @@ export function ParamControl({
             </Tooltip>
           ) : null}
           {canReset ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Reset ${label}`}
-                    onClick={() => onChange(resetValue)}
-                  />
-                }
-              >
-                <RotateCcw />
-              </TooltipTrigger>
-              <TooltipContent>Reset to {resetValue}</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Reset ${label}`}
+              title={`Reset to ${resetValue}`}
+              onClick={() => onChange(resetValue)}
+            >
+              <RotateCcw />
+            </Button>
           ) : null}
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
         <Slider
           value={[value]}
           min={min}
@@ -112,10 +105,6 @@ export function ParamControl({
           }
           className="flex-1"
         />
-        <span className="w-8 shrink-0 text-right font-mono text-[10px] text-muted-foreground/70">
-          {min}
-        </span>
-      </div>
     </Field>
   );
 }

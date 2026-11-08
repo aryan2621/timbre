@@ -15,6 +15,7 @@ import {
   Plus,
   Settings2,
   Sun,
+  Bot,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -37,6 +38,7 @@ const PAGE_ICONS: Record<PageKey, typeof AudioLines> = {
   studio: AudioLines,
   voices: Mic2,
   batch: Layers,
+  agents: Bot,
   history: History,
   models: Boxes,
   settings: Settings2,
@@ -46,6 +48,7 @@ const PAGE_SHORTCUTS: Record<PageKey, string> = {
   studio: "mod+1",
   voices: "mod+2",
   batch: "mod+3",
+  agents: "mod+7",
   history: "mod+4",
   models: "mod+5",
   settings: "mod+6",

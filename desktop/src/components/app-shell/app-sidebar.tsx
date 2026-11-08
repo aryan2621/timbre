@@ -2,6 +2,8 @@ import {
   AudioLines,
   Boxes,
   History,
+  ArrowLeft,
+  Bot,
   Layers,
   Mic2,
   Search,
@@ -20,6 +22,9 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { EngineStatusBlock } from "@/components/engine-status";
+import { Input } from "@/components/ui/input";
+import { SETTINGS_SECTIONS } from "@/hooks/use-settings";
+import { settingsNav, useSettingsNav } from "@/lib/settings-nav";
 import { formatShortcut } from "@/lib/shortcuts";
 import type { PageKey } from "@/lib/pages";
 
@@ -37,6 +42,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { key: "studio", label: "Studio", icon: AudioLines, shortcut: "mod+1" },
       { key: "batch", label: "Batch", icon: Layers, shortcut: "mod+3" },
+      { key: "agents", label: "Agents", icon: Bot, shortcut: "mod+7" },
     ],
   },
   {
@@ -61,21 +67,64 @@ interface AppSidebarProps {
   onOpenPalette: () => void;
 }
 
+function SettingsNavigation({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
+  const { activeSection, search, returnPage } = useSettingsNav();
+  const term = search.trim().toLowerCase();
+  const sections = term
+    ? SETTINGS_SECTIONS.filter((section) =>
+        `${section.label} ${section.description}`.toLowerCase().includes(term),
+      )
+    : SETTINGS_SECTIONS;
+  return (
+    <SidebarContent>
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton className="h-9" tooltip="Back" onClick={() => onNavigate(returnPage)}>
+                <ArrowLeft />
+                <span>Back</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <Input
+            value={search}
+            onChange={(event) => settingsNav.setSearch(event.target.value)}
+            placeholder="Find a setting"
+            aria-label="Search the settings"
+            className="my-2 group-data-[collapsible=icon]:hidden"
+          />
+          <SidebarMenu>
+            {sections.map((section) => (
+              <SidebarMenuItem key={section.id}>
+                <SidebarMenuButton
+                  isActive={section.id === activeSection}
+                  tooltip={section.label}
+                  className="h-9"
+                  onClick={() => settingsNav.setActiveSection(section.id)}
+                >
+                  <section.icon />
+                  <span>{section.label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </SidebarContent>
+  );
+}
+
 export function AppSidebar({ page, onNavigate, onOpenPalette }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" className="border-r border-border/70">
       <SidebarHeader>
         <div className="flex items-center gap-2.5 px-1 py-2">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(31_30_29/0.18)]">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <AudioLines className="size-4" />
           </div>
           <div className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="truncate font-serif text-[17px] font-medium tracking-tight">
-              VoiceClone
-            </span>
-            <span className="truncate text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              Studio
-            </span>
+            <span className="truncate text-[15px] font-semibold tracking-tight">Timbre</span>
           </div>
         </div>
 
@@ -92,6 +141,9 @@ export function AppSidebar({ page, onNavigate, onOpenPalette }: AppSidebarProps)
         </button>
       </SidebarHeader>
 
+      {page === "settings" ? (
+        <SettingsNavigation onNavigate={onNavigate} />
+      ) : (
       <SidebarContent>
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
@@ -105,12 +157,9 @@ export function AppSidebar({ page, onNavigate, onOpenPalette }: AppSidebarProps)
                     <SidebarMenuButton
                       isActive={page === item.key}
                       tooltip={`${item.label} · ${formatShortcut(item.shortcut)}`}
-                      className="relative h-9"
+                      className="h-9"
                       onClick={() => onNavigate(item.key)}
                     >
-                      {page === item.key ? (
-                        <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary" />
-                      ) : null}
                       <item.icon />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
@@ -121,6 +170,7 @@ export function AppSidebar({ page, onNavigate, onOpenPalette }: AppSidebarProps)
           </SidebarGroup>
         ))}
       </SidebarContent>
+      )}
 
       <SidebarFooter>
         <EngineStatusBlock className="group-data-[collapsible=icon]:hidden" />

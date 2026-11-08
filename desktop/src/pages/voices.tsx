@@ -1,3 +1,4 @@
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
@@ -50,11 +51,9 @@ import { useApp, useAppActions } from "@/lib/app-context";
 import { pickAudioFile } from "@/lib/desktop";
 import { MAX_RECORD_SECONDS, useRecorder } from "@/hooks/use-recorder";
 import { useEngineStatus } from "@/lib/engine-status";
-import { formatDuration } from "@/lib/format";
 import { mockEngines, mockVoices, demoList } from "@/lib/mock";
 import type { EngineInfo, VoiceProfile } from "@/lib/types";
 
-type ConsentFilter = "all" | "confirmed" | "missing";
 
 const EMPTY_FORM = { name: "", language: "en", referencePath: "", notes: "" };
 
@@ -67,7 +66,6 @@ export function VoicesPage() {
   const [engines, setEngines] = useState<EngineInfo[]>(demoList(mockEngines));
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [consentFilter, setConsentFilter] = useState<ConsentFilter>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -114,12 +112,10 @@ export function VoicesPage() {
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     return voices.filter((v) => {
-      if (consentFilter === "confirmed" && !v.consent_confirmed) return false;
-      if (consentFilter === "missing" && v.consent_confirmed) return false;
       if (!term) return true;
       return v.name.toLowerCase().includes(term) || v.language.toLowerCase().includes(term) || v.notes.toLowerCase().includes(term);
     });
-  }, [consentFilter, query, voices]);
+  }, [query, voices]);
 
   const confirmedCount = voices.filter(v => v.consent_confirmed).length;
   const totalClips = voices.reduce((s, v) => s + v.clips.length, 0);
@@ -196,6 +192,7 @@ export function VoicesPage() {
 
   return (
     <div className="flex min-h-screen flex-col gap-6">
+      <LoadingOverlay show={loading} />
       <PageHeader
         title="Voices"
         description="Reference voices, their quality and cloning permissions. Everything stays on this machine."
@@ -217,17 +214,6 @@ export function VoicesPage() {
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name, language or notes…" className="pl-9 h-10 w-full" />
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 w-full sm:w-auto rounded-md border bg-surface-raised p-1">
-          {[
-            { id: "all", label: "All" },
-            { id: "confirmed", label: "Consented" },
-            { id: "missing", label: "Missing" },
-          ].map(opt => (
-            <button key={opt.id} onClick={() => setConsentFilter(opt.id as ConsentFilter)} className={`rounded-md px-3 py-1.5 text-sm font-medium transition w-full sm:w-auto ${consentFilter === opt.id ? "bg-surface-inset text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {loading ? (
@@ -239,19 +225,18 @@ export function VoicesPage() {
           <EmptyHeader>
             <EmptyMedia variant="icon"><Mic2 /></EmptyMedia>
             <EmptyTitle>{voices.length === 0 ? "No voice profiles yet" : "No voices match"}</EmptyTitle>
-            <EmptyDescription>{voices.length === 0 ? "Create a profile with 5–30 seconds of clean reference speech." : "Try a different search or filter."}</EmptyDescription>
+            <EmptyDescription>{voices.length === 0 ? "Create a profile with 5–30 seconds of clean reference speech." : "Try a different search."}</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            {voices.length === 0 ? <Button onClick={() => setDialogOpen(true)}><Plus className="mr-1.5 size-4" />Create your first voice</Button> : <Button variant="outline" onClick={() => setConsentFilter("all")}>Show all</Button>}
+            {voices.length === 0 ? <Button onClick={() => setDialogOpen(true)}><Plus className="mr-1.5 size-4" />Create your first voice</Button> : <Button variant="outline" onClick={() => setQuery("")}>Clear search</Button>}
           </EmptyContent>
         </Empty>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map(voice => {
             const quality = voice.clips[0]?.quality_score ?? 0;
-            const totalSeconds = voice.clips.reduce((s, c) => s + c.duration_seconds, 0);
             return (
-              <Card key={voice.id} className="group relative overflow-hidden shadow-[var(--shadow-soft)] transition hover:shadow-[var(--shadow-lifted)]">
+              <Card key={voice.id} className="group relative overflow-hidden">
                 <CardHeader className="pb-3">
                   <div className="flex items-start gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-accent text-primary">
@@ -277,7 +262,6 @@ export function VoicesPage() {
                   <div className="flex flex-wrap gap-1.5">
                     <Badge variant="secondary">{voice.language.toUpperCase()}</Badge>
                     <Badge variant="outline">{voice.clips.length} sample{voice.clips.length !== 1 ? "s" : ""}</Badge>
-                    {totalSeconds > 0 && <Badge variant="outline">{formatDuration(totalSeconds)}</Badge>}
                   </div>
                   <div>
                     <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">

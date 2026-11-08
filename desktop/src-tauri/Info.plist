@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>VoiceClone Studio records a short reference sample to clone a voice.</string>
+  <string>Timbre records a short reference sample to clone a voice.</string>
 </dict>
 </plist>

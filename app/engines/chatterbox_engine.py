@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover - numpy is a hard requirement in practic
 from app.core.config import config_manager
 from app.core.device import device_manager
 from app.core.logging_setup import get_logger
-from app.engines.base import EngineLicense, SynthesisParameters, TTSEngine
+from app.engines.base import EngineLicense, ParamSpec, SynthesisParameters, TTSEngine
 
 logger = get_logger("chatterbox")
 
@@ -63,6 +63,15 @@ class ChatterboxEngine(TTSEngine):
     """
 
     model_id = "chatterbox-tts"
+    controls = (
+        ParamSpec("exaggeration", "Exaggeration", 0.0, 5.0, 0.05, 1.0, description="How much the voice swings between flat and dramatic."),
+        ParamSpec("cfg_weight", "Speaker match (CFG)", 0.0, 20.0, 0.1, 2.0, description="How strictly the render follows the reference voice."),
+        ParamSpec("temperature", "Variation", 0.05, 5.0, 0.05, 0.65),
+        ParamSpec("top_p", "Top-p", 0.05, 1.0, 0.01, 0.85, description="Keeps only the most likely sounds at each step."),
+        ParamSpec("min_p", "Min-p", 0.0, 1.0, 0.01, 0.05, description="Drops very unlikely sounds."),
+        ParamSpec("repetition_penalty", "Repetition penalty", 1.0, 10.0, 0.1, 2.0),
+        ParamSpec("speed", "Speed", 0.25, 4.0, 0.05, 1.0, group="delivery"),
+    )
 
     def __init__(self) -> None:
         self._is_loaded = False
@@ -340,7 +349,7 @@ class ChatterboxEngine(TTSEngine):
                 )
                 generate_kwargs = {
                     "repetition_penalty": params.repetition_penalty,
-                    "min_p": 0.05,
+                    "min_p": float(params.extra.get("min_p", 0.05)),
                     "top_p": params.top_p,
                     # conditions are (re)used via self.conds / cache
                     "audio_prompt_path": None,

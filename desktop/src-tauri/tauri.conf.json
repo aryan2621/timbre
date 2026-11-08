@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "VoiceClone Studio",
+  "productName": "Timbre",
   "version": "0.1.0",
   "identifier": "studio.voiceclone.desktop",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "VoiceClone Studio",
+        "title": "Timbre",
         "width": 1280,
         "height": 860,
         "minWidth": 1040,

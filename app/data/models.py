@@ -84,6 +84,7 @@ class HistoryEntry:
     duration_seconds: float = 0.0
     sample_rate: int = 24000
     created_at: str = field(default_factory=utc_now_iso)
+    kind: str = "speech"
 
 
 @dataclass
@@ -109,3 +110,7 @@ class ModelMetadata:
     total_bytes: int
     local_dir: str
     files: list[ModelFile] = field(default_factory=list)
+    gated_url: str = ""
+    category: str = "voice-cloning"
+    min_memory_gb: float = 4.0
+    gpu_recommended: bool = False

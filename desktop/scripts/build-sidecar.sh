@@ -15,6 +15,8 @@ cd "$ROOT"
   --distpath "$ROOT/build/sidecar" --workpath "$ROOT/build/pyinstaller" --specpath "$ROOT/build" \
   --collect-submodules app \
   --collect-all soundfile --collect-all librosa \
+  --collect-all pocket_tts --copy-metadata pocket-tts \
+  --collect-all keyring --copy-metadata keyring \
   --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto \
   --hidden-import uvicorn.protocols.http.auto --hidden-import uvicorn.lifespan.on \
   app/api/server.py

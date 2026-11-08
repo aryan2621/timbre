@@ -28,6 +28,7 @@ interface WaveformPlayerProps {
   peaks?: number[] | null;
   duration?: number;
   height?: number;
+  timeline?: boolean;
   className?: string;
   onTimeUpdate?: (time: number) => void;
   onPlayChange?: (playing: boolean) => void;
@@ -71,6 +72,7 @@ export const WaveformPlayer = forwardRef<
     peaks,
     duration,
     height = 132,
+    timeline = true,
     className,
     onTimeUpdate,
     onPlayChange,
@@ -114,15 +116,19 @@ export const WaveformPlayer = forwardRef<
       dragToSeek: true,
       autoCenter: false,
       plugins: [
-        Timeline.create({
-          height: 18,
-          secondaryLabelOpacity: 0.35,
-          style: {
-            fontSize: "10px",
-            fontFamily: "var(--font-mono)",
-            color: colors.muted,
-          },
-        }),
+        ...(timeline
+          ? [
+              Timeline.create({
+                height: 18,
+                secondaryLabelOpacity: 0.35,
+                style: {
+                  fontSize: "10px",
+                  fontFamily: "var(--font-mono)",
+                  color: colors.muted,
+                },
+              }),
+            ]
+          : []),
         Hover.create({
           lineColor: colors.playhead,
           labelColor: colors.text,
@@ -168,7 +174,7 @@ export const WaveformPlayer = forwardRef<
       waveRef.current = null;
       loadedUrlRef.current = null;
     };
-  }, [height, resolvedTheme]);
+  }, [height, timeline, resolvedTheme]);
 
   useEffect(() => {
     const wave = waveRef.current;

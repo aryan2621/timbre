@@ -1,7 +1,7 @@
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   flexRender,
-  type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
 import {
@@ -36,10 +36,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Empty,
   EmptyContent,
@@ -85,7 +83,6 @@ export function HistoryPage() {
 
   const [query, setQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "created_at", desc: true }]);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -98,7 +95,7 @@ export function HistoryPage() {
     setConfirmClear,
     remove,
     clearAll,
-  } = useHistoryEntries(online, () => setRowSelection({}));
+  } = useHistoryEntries(online);
 
   const { playingId, progress, peaksById, preview, ensurePeaks, exportEntry } =
     useHistoryPlayback(online);
@@ -121,27 +118,6 @@ export function HistoryPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const columns = useMemo<LegacyColumnDef<HistoryEntry, any>[]>(
     () => [
-      columnHelper.display({
-        id: "select",
-        size: 36,
-        header: ({ table }) => (
-          <Checkbox
-            checked={table.getIsAllRowsSelected()}
-            indeterminate={table.getIsSomeRowsSelected()}
-            aria-label="Select every row"
-            onCheckedChange={(checked) =>
-              table.toggleAllRowsSelected(checked === true)
-            }
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            aria-label={`Select the render from ${row.original.voice_name}`}
-            onCheckedChange={(checked) => row.toggleSelected(checked === true)}
-          />
-        ),
-      }),
       columnHelper.accessor("created_at", {
         header: "Created",
         size: 150,
@@ -165,7 +141,7 @@ export function HistoryPage() {
         header: "Engine",
         size: 150,
         cell: ({ getValue }) => (
-          <Badge variant="outline">{String(getValue())}</Badge>
+          <span className="text-muted-foreground">{String(getValue())}</span>
         ),
       }),
       columnHelper.accessor("prompt_text", {
@@ -293,9 +269,8 @@ export function HistoryPage() {
   const table = useLegacyTable<HistoryEntry>({
     data: entries,
     columns,
-    state: { sorting, rowSelection, globalFilter: query },
+    state: { sorting, globalFilter: query },
     onSortingChange: setSorting,
-    onRowSelectionChange: setRowSelection,
     globalFilterFn: (row, _columnId, filterValue) => {
       const term = String(filterValue ?? "").trim().toLowerCase();
       if (!term) return true;
@@ -308,7 +283,6 @@ export function HistoryPage() {
     },
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    enableRowSelection: true,
   });
 
   const rows = table.getRowModel().rows;
@@ -328,7 +302,6 @@ export function HistoryPage() {
     }
   }, [ensurePeaks, rows, virtualizer]);
 
-  const selectedRows = table.getSelectedRowModel().rows;
   const totalDuration = entries.reduce(
     (sum, entry) => sum + (entry.duration_seconds ?? 0),
     0,
@@ -336,6 +309,7 @@ export function HistoryPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <LoadingOverlay show={loading} />
       <PageHeader
         title="History"
         description="Every render you made, with the settings that produced it."
@@ -370,27 +344,10 @@ export function HistoryPage() {
             className="pl-8"
           />
         </div>
-
-        {selectedRows.length ? (
-          <div className="flex items-center gap-2 rounded-md border border-primary/25 bg-surface-accent px-2.5 py-1.5 text-xs">
-            <span className="font-medium text-primary">
-              {selectedRows.length} selected
-            </span>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => {
-                setRowSelection({});
-              }}
-            >
-              Clear
-            </Button>
-          </div>
-        ) : null}
       </div>
 
       {/* ----------------------------------------------------------- table */}
-      <Card className="overflow-hidden p-0 shadow-[var(--shadow-soft)]">
+      <Card className="overflow-hidden p-0">
         <CardContent className="p-0">
           {loading ? (
             <div className="space-y-2 p-4">
@@ -487,12 +444,11 @@ export function HistoryPage() {
                       <div
                         key={row.id}
                         role="row"
-                        className="absolute top-0 left-0 flex w-full items-center border-b border-border/50 px-3 transition-colors hover:bg-muted/40 data-[selected=true]:bg-surface-accent/50"
+                        className="absolute top-0 left-0 flex w-full items-center border-b border-border/50 px-3 transition-colors hover:bg-muted/40"
                         style={{
                           height: virtualRow.size,
                           transform: `translateY(${virtualRow.start}px)`,
                         }}
-                        data-selected={row.getIsSelected()}
                       >
                         {row.getVisibleCells().map((cell) => (
                           <div

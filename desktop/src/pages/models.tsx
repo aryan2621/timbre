@@ -1,16 +1,5 @@
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "motion/react";
-import {
-  Boxes,
-  Check,
-  Download,
-  HardDrive,
-  Loader2,
-  Scale,
-  Square,
-  Trash2,
-  TriangleAlert,
-} from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -22,45 +11,50 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ArrowDownToLine, Check, Trash2 } from "lucide-react";
+import { activeModels, useActiveModels } from "@/lib/active-models";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Meter } from "@/components/ui/meter";
-import { PageHeader, StatChip } from "@/components/ui/page-header";
+import { PAGE_DESCRIPTIONS, PAGE_TITLES } from "@/lib/pages";
+import { PageHeader } from "@/components/ui/page-header";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { useEngineStatus } from "@/lib/engine-status";
 import { formatBytes } from "@/lib/format";
 import { mockModels, demoList } from "@/lib/mock";
-import type { DownloadJob, ModelInfo } from "@/lib/types";
+import { HuggingFaceToken } from "@/components/models/hugging-face-token";
+import { SystemStrip } from "@/components/models/system-strip";
+import type {
+  DownloadJob,
+  HuggingFaceStatus,
+  ModelCategory,
+  ModelInfo,
+  SystemSpecs,
+} from "@/lib/types";
 
 const ACTIVE_STATES = new Set(["queued", "running"]);
 
-/**
- * The model catalogue.
- *
- * The old screen was a list of rows with a download progress hidden in a
- * small box and an 11px underlined “Cancel” link. Each model is now a card
- * with a real progress ring, the licence in plain words and the download
- * controls at a consistent weight.
- */
+const CATEGORY_LABELS: Record<ModelCategory, string> = {
+  "voice-cloning": "Voice cloning",
+  sound: "Sound effects",
+  music: "Music",
+  "voice-agent": "Voice agents",
+};
+const CATEGORY_ORDER = Object.keys(CATEGORY_LABELS) as ModelCategory[];
+
 export function ModelsPage() {
   const { status: connection } = useEngineStatus();
   const online = connection !== "offline";
 
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [downloads, setDownloads] = useState<Record<string, DownloadJob>>({});
+  const [specs, setSpecs] = useState<SystemSpecs | null>(null);
+  const [hfStatus, setHfStatus] = useState<HuggingFaceStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<ModelInfo | null>(null);
+  const [tab, setTab] = useState<ModelCategory>("voice-cloning");
   const notified = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -70,8 +64,14 @@ export function ModelsPage() {
       return;
     }
     try {
-      const next = await api.listModels();
+      const [next, nextSpecs, nextStatus] = await Promise.all([
+        api.listModels(),
+        api.getSystemSpecs().catch(() => null),
+        api.getHuggingFaceStatus().catch(() => null),
+      ]);
       setModels(next);
+      setSpecs(nextSpecs);
+      setHfStatus(nextStatus);
       setDownloads((previous) => {
         const merged = { ...previous };
         for (const model of next) {
@@ -142,7 +142,7 @@ export function ModelsPage() {
         try {
           setModels(await api.listModels());
         } catch {
-          /* keep the last known catalog */
+          return;
         }
       }
     };
@@ -161,12 +161,10 @@ export function ModelsPage() {
       });
       return;
     }
+    if (model.requires_token && !hfStatus?.configured) return;
     try {
       const job = await api.startModelDownload(model.id);
       setDownloads((previous) => ({ ...previous, [model.id]: job }));
-      toast.message(`Downloading ${model.name}`, {
-        description: "Progress is tracked in the card. You can keep using the app.",
-      });
     } catch (error) {
       toast.error("Could not start the download", {
         description: error instanceof Error ? error.message : String(error),
@@ -204,251 +202,164 @@ export function ModelsPage() {
     }
   };
 
-  const downloaded = models.filter((model) => model.is_downloaded);
-  const installedBytes = downloaded.reduce(
-    (sum, model) => sum + model.total_bytes,
-    0,
+  const visibleModels = models.filter(
+    (model) => model.fit.status !== "blocked" || model.is_downloaded,
   );
-  const totalBytes = models.reduce((sum, model) => sum + model.total_bytes, 0);
+  const hiddenModels = models.filter((model) => !visibleModels.includes(model));
+  const sections = CATEGORY_ORDER.map((category) => ({
+    category,
+    items: visibleModels.filter((model) => model.category === category),
+  })).filter((section) => section.items.length > 0);
+  const activeTab = sections.some((section) => section.category === tab) ? tab : (sections[0]?.category ?? tab);
+  const activeItems = sections.find((section) => section.category === activeTab)?.items ?? [];
+  const isSelectable = (model: ModelInfo) => !model.id.startsWith("agent-whisper");
+  const chosen = useActiveModels()[activeTab];
+  const installedSelectable = activeItems.filter((model) => isSelectable(model) && model.is_downloaded);
+  const inUse = installedSelectable.find((model) => model.id === chosen)?.id ?? installedSelectable[0]?.id;
+  const installedCount = models.filter((model) => model.is_downloaded).length;
+  const hasGated = models.some((model) => model.requires_token);
 
   return (
     <div className="flex flex-col gap-4">
+      <LoadingOverlay show={loading} />
       <PageHeader
-        title="Models"
-        description="Voice model packs, licences and downloads. Everything runs locally — no weights are uploaded anywhere."
-        icon={Boxes}
+        title={PAGE_TITLES.models}
+        description={PAGE_DESCRIPTIONS.models}
         meta={
           <>
-            <StatChip icon={Check} tone={downloaded.length ? "success" : "neutral"}>
-              {downloaded.length} of {models.length} installed
-            </StatChip>
-            <StatChip icon={HardDrive}>{formatBytes(installedBytes)}</StatChip>
+            {specs ? <SystemStrip specs={specs} /> : null}
+            {models.length > 0 ? (
+              <span className="text-xs text-muted-foreground">
+                {installedCount} of {models.length} installed
+              </span>
+            ) : null}
           </>
         }
       />
 
-      {models.length ? (
-        <div className="rounded-md border border-border bg-surface-accent px-4 py-3 text-sm">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <Scale className="size-4 shrink-0 text-primary" />
-            <p className="min-w-0 flex-1 text-foreground">
-              {downloaded.length > 0 ? (
-                <>
-                  <strong>
-                    {downloaded.length} voice model
-                    {downloaded.length > 1 ? "s" : ""} installed and ready to use.
-                  </strong>{" "}
-                  Downloads resume automatically if they are interrupted.
-                </>
-              ) : (
-                <>
-                  <strong>No voice models downloaded yet.</strong> Pick a pack
-                  below — it is fetched once and then works offline.
-                </>
-              )}
-            </p>
-            {totalBytes > 0 ? (
-              <div className="flex w-full items-center gap-2 sm:w-64">
-                <Meter
-                  value={installedBytes}
-                  max={totalBytes}
-                  label="Installed model weight"
-                  showValue={false}
-                  tone="success"
-                  className="flex-1"
-                />
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                  {formatBytes(installedBytes)} / {formatBytes(totalBytes)}
-                </span>
-              </div>
-            ) : null}
-          </div>
-        </div>
+      {hasGated && online ? (
+        <HuggingFaceToken
+          status={hfStatus}
+          onChange={setHfStatus}
+          gatedUrls={[...new Set(models.filter((model) => model.gated_url).map((model) => model.gated_url))]}
+        />
       ) : null}
 
       {loading ? (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-1">
           {[0, 1, 2, 3].map((index) => (
-            <Skeleton key={index} className="h-48 rounded-md" />
+            <Skeleton key={index} className="h-10" />
           ))}
         </div>
       ) : models.length === 0 ? (
-        <Empty className="border border-dashed bg-surface-inset/60 py-14">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <Boxes />
-            </EmptyMedia>
-            <EmptyTitle>No models in the catalogue</EmptyTitle>
-            <EmptyDescription>
-              The catalogue is defined by the Python sidecar. Start it to see
-              the available voice packs.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <p className="py-8 text-sm text-muted-foreground">
+          No models. Start the engine to load the catalogue.
+        </p>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {models.map((model, index) => {
-            const job = downloads[model.id];
-            const active = job ? ACTIVE_STATES.has(job.state) : false;
-            const failed = job?.state === "failed";
-            const percent = job?.progress ?? (model.is_downloaded ? 100 : 0);
+        <div className="flex flex-col gap-6">
+          <Tabs value={activeTab} onValueChange={(value) => setTab(value as ModelCategory)}>
+            <TabsList variant="line">
+              {sections.map(({ category, items }) => (
+                <TabsTrigger key={category} value={category}>
+                  {CATEGORY_LABELS[category]}
+                  <span className="text-xs text-muted-foreground">{items.length}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <ul className="flex flex-col gap-2">
+            {activeItems.map((model) => {
+              const job = downloads[model.id];
+              const active = job ? ACTIVE_STATES.has(job.state) : false;
+              const failed = job?.state === "failed";
+              const percent = job?.progress ?? 0;
+              const tokenMissing = model.requires_token && !hfStatus?.configured;
+              const warnings = [
+                ...(model.fit.status === "possible" ? model.fit.reasons : []),
+                ...(model.unavailable_reason && !model.is_downloaded ? [] : model.unavailable_reason ? [model.unavailable_reason] : []),
+                ...(failed ? [job?.error ?? job?.message ?? "Download failed"] : []),
+              ];
 
-            return (
-              <motion.div
-                key={model.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.18,
-                  delay: Math.min(index * 0.03, 0.24),
-                }}
-              >
-                <Card className="relative h-full shadow-[var(--shadow-soft)]">
-                  <div className="absolute right-3 top-3 flex items-center gap-1">
+              return (
+                <li key={model.id} className="flex items-center justify-between gap-4 rounded-lg border bg-card px-4 py-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      {model.name}
+                      {model.id === inUse ? <Badge variant="secondary">In use</Badge> : null}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{model.license_notice}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[formatBytes(model.total_bytes), `needs ${model.min_memory_gb} GB`, model.commercial_allowed ? null : "Non-commercial"].filter(Boolean).join(" · ")}
+                    </p>
+                    {warnings.map((reason) => (
+                      <p key={reason} className="text-xs text-status-warning">
+                        {reason}
+                      </p>
+                    ))}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
                     {active ? (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label="Cancel download"
-                              onClick={() => job && void cancelDownload(job)}
-                            />
-                          }
-                        >
-                          <Square />
-                        </TooltipTrigger>
-                        <TooltipContent>Cancel download</TooltipContent>
-                      </Tooltip>
+                      <>
+                        <Progress value={percent} className="w-28" />
+                        <span data-numeric className="w-24 text-xs text-muted-foreground">
+                          {percent.toFixed(0)}%{job?.speed_mb_s ? ` · ${job.speed_mb_s.toFixed(1)} MB/s` : ""}
+                        </span>
+                        <Button variant="ghost" size="xs" onClick={() => job && void cancelDownload(job)}>
+                          Cancel
+                        </Button>
+                      </>
                     ) : model.is_downloaded ? (
                       <>
-                        <span
-                          className="flex size-7 items-center justify-center text-status-success"
-                          title="Installed and ready"
-                          role="img"
-                          aria-label="Installed and ready"
+                        {isSelectable(model) && model.id !== inUse ? (
+                          <Button variant="outline" size="sm" onClick={() => activeModels.set(activeTab, model.id)}>
+                            <Check /> Use
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Delete ${model.name}`}
+                          onClick={() => setPendingDelete(model)}
                         >
-                          <Check className="size-4" />
-                        </span>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Remove downloaded weights"
-                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                onClick={() => setPendingDelete(model)}
-                              />
-                            }
-                          >
-                            <Trash2 />
-                          </TooltipTrigger>
-                          <TooltipContent>Delete the downloaded weights</TooltipContent>
-                        </Tooltip>
+                          <Trash2 />
+                        </Button>
                       </>
                     ) : (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label="Download model"
-                              onClick={() => void startDownload(model)}
-                            />
-                          }
-                        >
-                          <Download />
-                        </TooltipTrigger>
-                        <TooltipContent>Download model</TooltipContent>
-                      </Tooltip>
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label={`Download ${model.name}`}
+                        disabled={model.fit.status === "blocked" || tokenMissing}
+                        title={tokenMissing ? "Add your Hugging Face token first" : "Download"}
+                        onClick={() => void startDownload(model)}
+                      >
+                        <ArrowDownToLine />
+                      </Button>
                     )}
                   </div>
-                  <CardContent className="flex h-full flex-col gap-2">
-                    <div className="flex items-start gap-3 pr-16">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-surface-accent text-primary">
-                        <Boxes className="size-4" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <h3 className="text-[15px] font-medium leading-tight">
-                            {model.name}
-                          </h3>
-                          <Badge
-                            variant={model.commercial_allowed ? "secondary" : "outline"}
-                            className={
-                              model.commercial_allowed
-                                ? ""
-                                : "border-status-warning/40 text-status-warning"
-                            }
-                          >
-                            {model.commercial_allowed ? "Commercial" : "Non-commercial"}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                          {model.license_notice}
-                        </p>
-                        {model.unavailable_reason ? (
-                          <p className="mt-1 flex items-start gap-1.5 text-[11.5px] text-status-warning">
-                            <TriangleAlert className="mt-0.5 size-3 shrink-0" />
-                            Can't be used on this machine yet: {model.unavailable_reason}
-                          </p>
-                        ) : null}
-                        <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                          v{model.version} · {formatBytes(model.total_bytes)} ·{" "}
-                          {model.license_name}
-                        </p>
-                      </div>
-                    </div>
+                </li>
+              );
+            })}
+          </ul>
 
-                    {active ? (
-                      <div className="space-y-2 rounded-md border border-border bg-surface-inset/60 p-3">
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
-                          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                            {job?.message}
-                          </span>
-                          <span
-                            data-numeric
-                            className="shrink-0 font-mono text-xs font-medium"
-                          >
-                            {percent.toFixed(0)}%
-                          </span>
-                        </div>
-                        <Progress value={percent} />
-                        <div className="flex items-center justify-between gap-2">
-                          <span
-                            data-numeric
-                            className="font-mono text-[11px] text-muted-foreground"
-                          >
-                            {formatBytes(job?.downloaded_bytes ?? 0)} /{" "}
-                            {formatBytes(job?.total_bytes ?? model.total_bytes)} ·{" "}
-                            {(job?.speed_mb_s ?? 0).toFixed(2)} MB/s
-                          </span>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {failed ? (
-                      <p className="flex items-start gap-1.5 text-[11px] text-destructive">
-                        <TriangleAlert className="mt-0.5 size-3 shrink-0" />
-                        {job?.error ?? job?.message}
-                      </p>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
+          {hiddenModels.length > 0 ? (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-muted-foreground">
+                {hiddenModels.length} model{hiddenModels.length > 1 ? "s" : ""} not available on
+                this machine
+              </summary>
+              <ul className="mt-2 space-y-1 text-muted-foreground">
+                {hiddenModels.map((model) => (
+                  <li key={model.id}>
+                    <span className="font-medium text-foreground">{model.name}</span>{" "}
+                    {model.fit.reasons.join(" ")}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </div>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        Weights are stored under your local application data directory. Downloads
-        resume from a partial file if interrupted.
-      </p>
 
       <AlertDialog
         open={pendingDelete !== null}
@@ -458,19 +369,14 @@ export function ModelsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete the {pendingDelete?.name} weights?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete {pendingDelete?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The downloaded files are removed from this machine. You can
-              download them again later.
+              Removes {pendingDelete ? formatBytes(pendingDelete.total_bytes) : ""} of weights from this machine.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep them</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void removeModel()}>
-              Delete weights
-            </AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void removeModel()}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

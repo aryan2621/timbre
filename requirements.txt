@@ -17,6 +17,10 @@ pyloudnorm==0.1.1
 # Configuration & File System
 platformdirs==4.2.1
 
+# Pocket TTS: install with --no-deps, it declares numpy>=2 but runs on 1.26
+pocket-tts==4.0.1
+sentencepiece==0.2.3
+
 # perth (Chatterbox watermark) imports pkg_resources, removed in setuptools 81
 setuptools<81
 

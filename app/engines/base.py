@@ -7,7 +7,7 @@ from __future__ import annotations
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +15,20 @@ try:
     import numpy as np
 except ImportError:  # pragma: no cover - numpy is a hard requirement in practice
     np = None  # type: ignore[assignment]
+
+
+@dataclass
+class ParamSpec:
+    key: str
+    label: str
+    min: float = 0.0
+    max: float = 1.0
+    step: float = 0.1
+    default: float | str = 0.0
+    kind: str = "number"
+    options: tuple[str, ...] = ()
+    description: str = ""
+    group: str = "style"
 
 
 @dataclass
@@ -40,10 +54,11 @@ class SynthesisParameters:
     repetition_penalty: float = 2.0
     language: str = "en"
     enable_watermark: bool = True
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
-class TTSEngine(ABC):
-    """Abstract interface that every speech synthesis and cloning engine must implement."""
+class Engine(ABC):
+    """Lifecycle and metadata shared by every pluggable model engine (speech or sound)."""
 
     # Shared by all engines: callers hold it around load/unload/synthesize so a worker thread,
     # the idle-unload timer and the registry never touch model weights concurrently.
@@ -53,6 +68,8 @@ class TTSEngine(ABC):
 
     # Catalog id of this engine's downloadable weights (app/data/model_catalog.py), if any.
     model_id: str | None = None
+
+    controls: tuple[ParamSpec, ...] = ()
 
     def unavailable_reason(self) -> str | None:
         """None when the engine can run here, otherwise a short reason why not."""
@@ -74,12 +91,6 @@ class TTSEngine(ABC):
     @abstractmethod
     def license_info(self) -> EngineLicense:
         """License terms and commercial usability status."""
-        pass
-
-    @property
-    @abstractmethod
-    def supported_languages(self) -> list[str]:
-        """List of ISO language codes supported by this engine."""
         pass
 
     @property
@@ -115,6 +126,16 @@ class TTSEngine(ABC):
     @abstractmethod
     def unload_model(self) -> None:
         """Frees model weights from RAM/VRAM and clears PyTorch device cache."""
+        pass
+
+
+class TTSEngine(Engine):
+    """Abstract interface that every speech synthesis and cloning engine must implement."""
+
+    @property
+    @abstractmethod
+    def supported_languages(self) -> list[str]:
+        """List of ISO language codes supported by this engine."""
         pass
 
     @abstractmethod
@@ -162,4 +183,35 @@ class TTSEngine(ABC):
     @abstractmethod
     def get_default_params(self) -> SynthesisParameters:
         """Returns the recommended default parameters tuned for this engine."""
+        pass
+
+
+@dataclass
+class SoundParameters:
+    duration_seconds: float = 10.0
+    steps: int = 100
+    guidance: float = 7.0
+    seed: int = -1
+    negative_prompt: str = ""
+    lyrics: str = ""
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+class SoundEngine(Engine):
+    max_duration_seconds: float = 30.0
+    kinds: tuple[str, ...] = ("sfx", "music")
+    supports_lyrics: bool = False
+    supports_negative_prompt: bool = True
+
+    @abstractmethod
+    def generate(
+        self,
+        prompt: str,
+        params: SoundParameters,
+        on_step: Callable[[int, int], None] | None = None,
+    ) -> tuple[np.ndarray, int]:
+        pass
+
+    @abstractmethod
+    def get_default_params(self) -> SoundParameters:
         pass

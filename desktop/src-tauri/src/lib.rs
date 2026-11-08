@@ -38,7 +38,7 @@ pub fn run() {
     // A failed start is not fatal: the UI shows "engine not running" and the
     // developer may already run the server by hand.
     let child = spawn_backend(&token)
-        .map_err(|error| eprintln!("could not start the VoiceClone API: {error}"))
+        .map_err(|error| eprintln!("could not start the Timbre API: {error}"))
         .ok();
 
     tauri::Builder::default()

@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { mockSettings } from "@/lib/mock";
+import { settingsNav, useSettingsNav } from "@/lib/settings-nav";
 import { useTheme, type Theme } from "@/lib/theme";
 import type { AppSettings } from "@/lib/types";
 
@@ -33,7 +34,7 @@ interface SettingsSection {
 }
 
 /** The settings sections shown in the rail, in display order. */
-const SETTINGS_SECTIONS: SettingsSection[] = [
+export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "appearance",
     label: "Appearance",
@@ -98,8 +99,8 @@ export function useSettings(online: boolean): SettingsState {
 
   const [settings, setSettings] = useState<AppSettings>(mockSettings);
   const [saved, setSaved] = useState<AppSettings>(mockSettings);
-  const [activeSection, setActiveSection] = useState("appearance");
-  const [search, setSearch] = useState("");
+  const { activeSection, search } = useSettingsNav();
+  const { setActiveSection, setSearch } = settingsNav;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 

@@ -43,8 +43,8 @@ class HistoryRepository:
         with db_mod.db_manager.get_cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO history (voice_id, voice_name, engine_name, prompt_text, parameters_json, seed, audio_path, duration_seconds, sample_rate, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO history (voice_id, voice_name, engine_name, prompt_text, parameters_json, seed, audio_path, duration_seconds, sample_rate, created_at, kind)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     entry.voice_id,
@@ -57,6 +57,7 @@ class HistoryRepository:
                     entry.duration_seconds,
                     entry.sample_rate,
                     entry.created_at,
+                    entry.kind,
                 ),
             )
             entry.id = cursor.lastrowid
@@ -135,6 +136,7 @@ class HistoryRepository:
             duration_seconds=row["duration_seconds"],
             sample_rate=row["sample_rate"],
             created_at=row["created_at"],
+            kind=row["kind"],
         )
 
 

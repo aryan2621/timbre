@@ -17,7 +17,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.core.huggingface import bearer_headers, is_hugging_face_url
 from app.core.logging_setup import get_logger
+from app.core.secrets import hf_token_vault
 from app.data.model_catalog import model_local_path
 from app.data.models import ModelFile, ModelMetadata
 
@@ -126,6 +128,7 @@ class DownloadManager:
     def _run(self, job: DownloadJob, model: ModelMetadata, models_dir: Path) -> None:
         """Downloads every file of the model with resume, progress, cancel and SHA-256."""
         try:
+            auth_headers = self._auth_headers(model)
             destination_dir = model_local_path(model, models_dir)
             destination_dir.mkdir(parents=True, exist_ok=True)
 
@@ -148,7 +151,9 @@ class DownloadManager:
                     job.progress = (done_bytes / total_bytes) * 100.0 if total_bytes else 100.0
                     continue
 
-                if not self._download_file(job, file, destination, done_bytes, total_bytes):
+                if not self._download_file(
+                    job, file, destination, done_bytes, total_bytes, auth_headers
+                ):
                     return None  # cancelled or failed: state already set
                 done_bytes += file.size
 
@@ -161,8 +166,28 @@ class DownloadManager:
         except Exception as exc:  # noqa: BLE001 - surfaced to the UI as job.error
             logger.exception("Model download failed for %s", model.id)
             job.state = "failed"
-            job.error = f"Download failed: {exc}"
+            refused = isinstance(exc, urllib.error.HTTPError) and exc.code in (401, 403)
+            job.error = (
+                self._gated_message(model)
+                if model.gated_url and (refused or isinstance(exc, RuntimeError))
+                else f"Download failed: {exc}"
+            )
             job.message = "Download failed"
+
+    @staticmethod
+    def _gated_message(model: ModelMetadata) -> str:
+        return (
+            f"{model.name} is gated. Add your own Hugging Face token on this page and "
+            f"accept the licence at {model.gated_url}, then try again."
+        )
+
+    def _auth_headers(self, model: ModelMetadata) -> dict[str, str]:
+        if not model.gated_url:
+            return {}
+        token = hf_token_vault.get()
+        if not token:
+            raise RuntimeError(self._gated_message(model))
+        return bearer_headers(token)
 
     @staticmethod
     def _cancelled(job: DownloadJob) -> None:
@@ -177,11 +202,14 @@ class DownloadManager:
         destination: Path,
         done_bytes: int,
         total_bytes: int,
+        auth_headers: dict[str, str],
     ) -> bool:
         """Fetches one file into ``<name>.part`` then renames it. False if the job stopped."""
         part_file = destination.with_suffix(destination.suffix + ".part")
         existing_bytes = part_file.stat().st_size if part_file.exists() else 0
-        headers = {"Range": f"bytes={existing_bytes}-"} if existing_bytes > 0 else {}
+        headers = dict(auth_headers) if is_hugging_face_url(file.url) else {}
+        if existing_bytes > 0:
+            headers["Range"] = f"bytes={existing_bytes}-"
 
         try:
             response_cm = urllib.request.urlopen(

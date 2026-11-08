@@ -126,7 +126,7 @@ export const mockHistory: HistoryEntry[] = Array.from({ length: 8 }, (_, i) => (
   engine_name: "Chatterbox TTS",
   prompt_text:
     i % 2 === 0
-      ? "Welcome to VoiceClone Studio. Everything is processed locally on your machine."
+      ? "Welcome to Timbre. Everything is processed locally on your machine."
       : "The quick brown fox jumps over the lazy dog while the synth warms up.",
   parameters_json: "{}",
   seed: 1000 + i * 37,
@@ -134,6 +134,7 @@ export const mockHistory: HistoryEntry[] = Array.from({ length: 8 }, (_, i) => (
   duration_seconds: 3.2 + i * 0.7,
   sample_rate: 24000,
   created_at: daysAgo(i),
+  kind: "speech" as const,
 }));
 
 export const mockModels: ModelInfo[] = [
@@ -146,6 +147,11 @@ export const mockModels: ModelInfo[] = [
     license_notice: "Open-source zero-shot voice cloner with Perth watermarking.",
     total_bytes: 2_129_653_744,
     is_downloaded: false,
+    category: "voice-cloning",
+    requires_token: false,
+    gated_url: "",
+    min_memory_gb: 8,
+    fit: { status: "recommended", reasons: [] },
   },
 ];
 
