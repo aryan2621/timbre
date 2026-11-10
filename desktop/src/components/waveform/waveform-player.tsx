@@ -63,6 +63,41 @@ function palette() {
  * playback clock. The player owns a single media element, so the transport
  * controls, the clock and the waveform can never disagree.
  */
+const PEAK_COLUMNS = 1000;
+
+async function decodeMono(url: string): Promise<{ peaks: Float32Array; duration: number }> {
+  const context = new AudioContext();
+  try {
+    const buffer = await context.decodeAudioData(await (await fetch(url)).arrayBuffer());
+    const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
+    const step = Math.max(1, Math.floor(buffer.length / PEAK_COLUMNS));
+    const peaks = new Float32Array(Math.ceil(buffer.length / step));
+    for (const channel of channels) {
+      for (let i = 0; i < channel.length; i++) {
+        const column = Math.floor(i / step);
+        const level = Math.abs(channel[i]);
+        if (level > peaks[column]) peaks[column] = level;
+      }
+    }
+    return { peaks, duration: buffer.duration };
+  } finally {
+    void context.close();
+  }
+}
+
+async function loadMono(wave: WaveSurfer, url: string, peaks?: number[] | null, duration?: number) {
+  try {
+    if (peaks?.length && duration && duration > 0) {
+      await wave.load(url, [Float32Array.from(peaks)], duration);
+      return;
+    }
+    const decoded = await decodeMono(url);
+    await wave.load(url, [decoded.peaks], decoded.duration);
+  } catch (error) {
+    console.error("Waveform failed to load", error);
+  }
+}
+
 export const WaveformPlayer = forwardRef<
   WaveformPlayerHandle,
   WaveformPlayerProps
@@ -157,15 +192,7 @@ export const WaveformPlayer = forwardRef<
 
     const request = requestRef.current;
     if (request.url) {
-      const channelData = request.peaks?.length
-        ? [Float32Array.from(request.peaks)]
-        : undefined;
-      const knownDuration = request.duration ?? 0;
-      if (channelData && knownDuration > 0) {
-        void wave.load(request.url, channelData, knownDuration).catch(() => {});
-      } else {
-        void wave.load(request.url).catch(() => {});
-      }
+      void loadMono(wave, request.url, request.peaks, request.duration);
       loadedUrlRef.current = request.url;
     }
 
@@ -180,13 +207,7 @@ export const WaveformPlayer = forwardRef<
     const wave = waveRef.current;
     if (!wave || !url) return;
     if (loadedUrlRef.current === url) return;
-    const channelData = peaks?.length ? [Float32Array.from(peaks)] : undefined;
-    const knownDuration = duration ?? 0;
-    if (channelData && knownDuration > 0) {
-      void wave.load(url, channelData, knownDuration).catch(() => {});
-    } else {
-      void wave.load(url).catch(() => {});
-    }
+    void loadMono(wave, url, peaks, duration);
     loadedUrlRef.current = url;
   }, [url, peaks, duration]);
 
@@ -219,7 +240,7 @@ export const WaveformPlayer = forwardRef<
     <div
       ref={containerRef}
       className={cn(
-        "w-full overflow-hidden rounded-md border border-border bg-surface-inset",
+        "relative w-full overflow-hidden rounded-md border border-border bg-surface-inset",
         className,
       )}
       style={{ ["--waveform-height" as string]: `${height}px` } as CSSProperties}

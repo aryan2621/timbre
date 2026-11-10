@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useActiveModels } from "@/lib/active-models";
 import { formatDuration } from "@/lib/format";
+import { IS_TAURI } from "@/lib/desktop";
+import { notifyDone } from "@/lib/notify";
 import { demoList, mockEngines, mockVoices } from "@/lib/mock";
 import type {
   EngineInfo,
@@ -41,8 +43,26 @@ export interface Library {
  * fail every render with "Voice not found", so an unreachable engine shows an
  * empty library instead.
  */
+const VOICES_CACHE_KEY = "timbre.voices";
+
+function cachedVoices(): VoiceProfile[] {
+  try {
+    return JSON.parse(localStorage.getItem(VOICES_CACHE_KEY) ?? "[]") as VoiceProfile[];
+  } catch {
+    return [];
+  }
+}
+
+function cacheVoices(voices: VoiceProfile[]): void {
+  try {
+    localStorage.setItem(VOICES_CACHE_KEY, JSON.stringify(voices));
+  } catch {
+    // storage unavailable: the list just won't survive a restart
+  }
+}
+
 export function useLibrary(online: boolean): Library {
-  const [voices, setVoices] = useState<VoiceProfile[]>([]);
+  const [voices, setVoices] = useState<VoiceProfile[]>(cachedVoices);
   const [engines, setEngines] = useState<EngineInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [voice, setVoice] = useState<VoiceProfile | null>(null);
@@ -51,7 +71,7 @@ export function useLibrary(online: boolean): Library {
     let cancelled = false;
     async function load() {
       const fallback = () => {
-        setVoices(demoList(mockVoices));
+        setVoices(IS_TAURI ? cachedVoices() : demoList(mockVoices));
         setEngines(demoList(mockEngines));
       };
       if (!online) {
@@ -68,6 +88,7 @@ export function useLibrary(online: boolean): Library {
         ]);
         if (cancelled) return;
         setVoices(nextVoices);
+        cacheVoices(nextVoices);
         setEngines(nextEngines);
       } catch {
         if (!cancelled) fallback();
@@ -329,11 +350,12 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
         if (next.state === "done") {
           setAudioUrl(next.audio_url ? api.audioUrl(next.audio_url) : null);
           setDuration(next.duration_seconds ?? 0);
-          toast.success("Render complete", {
-            description: `${formatDuration(next.duration_seconds)} of audio is ready.`,
-          });
+          const description = `${formatDuration(next.duration_seconds)} of audio is ready.`;
+          toast.success("Render complete", { description });
+          void notifyDone("Render complete", description);
         } else if (next.state === "failed") {
           toast.error("Render failed", { description: next.error ?? undefined });
+          void notifyDone("Render failed", next.error ?? "The render could not be completed.");
         }
       } catch {
         // A restarted engine forgets its jobs and a dead one never answers:

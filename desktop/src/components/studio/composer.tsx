@@ -1,8 +1,10 @@
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp, Bell, BellRing, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { forwardRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { setNotifyWhenDone, useNotifyWhenDone } from "@/lib/notify";
 
 export type StudioMode = "speech" | "sfx" | "music";
 
@@ -30,7 +32,22 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   { mode, onModeChange, value, onChange, onSubmit, placeholder, canSubmit, busy, trailing, maxLength, controls },
   ref,
 ) {
+  const notify = useNotifyWhenDone();
+  const toggleNotify = async () => {
+    const ok = await setNotifyWhenDone(!notify);
+    if (!ok) toast.error("Notifications are blocked", { description: "Allow Timbre in system notification settings." });
+  };
   return (
+    <div className="space-y-2">
+    <button
+      type="button"
+      aria-pressed={notify}
+      onClick={() => void toggleNotify()}
+      className="ml-auto flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring aria-pressed:text-primary"
+    >
+      {notify ? <BellRing className="size-3.5" /> : <Bell className="size-3.5" />}
+      {notify ? "Notifying when done" : "Notify me when done"}
+    </button>
     <div className="rounded-lg border bg-card p-3">
       <Textarea
         ref={ref}
@@ -71,6 +88,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
           </Button>
         </div>
       </div>
+    </div>
     </div>
   );
 });

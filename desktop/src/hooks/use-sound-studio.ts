@@ -1,3 +1,4 @@
+import { notifyDone } from "@/lib/notify";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -56,11 +57,12 @@ export function useSoundJob() {
         failures = 0;
         setJob(next);
         if (next.state === "done") {
-          toast.success("Sound ready", {
-            description: `${formatDuration(next.duration_seconds)} of audio generated.`,
-          });
+          const description = `${formatDuration(next.duration_seconds)} of audio generated.`;
+          toast.success("Sound ready", { description });
+          void notifyDone("Sound ready", description);
         } else if (next.state === "failed") {
           toast.error("Generation failed", { description: next.error ?? undefined });
+          void notifyDone("Generation failed", next.error ?? "The sound could not be generated.");
         }
       } catch {
         failures += 1;

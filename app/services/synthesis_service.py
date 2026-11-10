@@ -43,13 +43,14 @@ _PEAKS_CACHE_LIMIT = 128
 
 def compute_peaks(audio: Any, count: int = MAX_PEAKS) -> list[float]:
     """Downsamples a waveform into normalized max-amplitude columns for the UI."""
-    if audio is None or len(audio) < 1024:
+    if audio is None:
         return []
     array = np.asarray(audio, dtype=np.float32)
-    if array.size == 0:
-        return []
     if array.ndim > 1:
-        array = array.mean(axis=-1)
+        array = array.mean(axis=int(np.argmin(array.shape)))
+    array = array.reshape(-1)
+    if array.size < 1024:
+        return []
     array = np.abs(array)
     total = int(array.size)
     step = max(1, total // count)
