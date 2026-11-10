@@ -17,6 +17,7 @@ cd "$ROOT"
   --collect-all soundfile --collect-all librosa \
   --collect-all pocket_tts --copy-metadata pocket-tts \
   --collect-submodules diffusers --copy-metadata diffusers \
+  --collect-all torchsde --copy-metadata torchsde \
   --collect-submodules transformers.models.musicgen \
   --copy-metadata transformers --copy-metadata requests --copy-metadata tqdm \
   --copy-metadata regex --copy-metadata packaging --copy-metadata filelock \

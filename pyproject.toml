@@ -37,6 +37,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "requests>=2.31",
     "sentencepiece>=0.2.1",
+    "torchsde>=0.2.6",  # Stable Audio Open scheduler (diffusers) imports it
     "setuptools<81",  # perth (Chatterbox watermark) imports pkg_resources, removed in 81
   ]
 

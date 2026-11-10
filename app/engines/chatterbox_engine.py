@@ -182,6 +182,12 @@ class ChatterboxEngine(TTSEngine):
         """
         return importlib.util.find_spec("chatterbox") is not None
 
+    def can_preload(self) -> bool:
+        from app.data.model_catalog import get_model, is_model_present
+
+        meta = get_model("chatterbox-tts")
+        return self.is_available() and bool(meta and meta.files and is_model_present(meta, config_manager.get_models_directory()))
+
     def is_loaded(self) -> bool:
         return self._is_loaded
 

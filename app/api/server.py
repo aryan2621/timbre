@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import threading
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -44,6 +45,7 @@ async def lifespan(_: FastAPI):
     logger.info("VoiceClone API %s starting on loopback.", API_VERSION)
     if not os.environ.get("VOICECLONE_API_TOKEN"):
         logger.warning("VOICECLONE_API_TOKEN is not set: the API accepts any local caller.")
+    threading.Thread(target=engine_registry.preload, name="voice-preload", daemon=True).start()
     try:
         yield
     finally:

@@ -110,6 +110,10 @@ class Engine(ABC):
         """Checks if model weights are present on disk and ready to be loaded."""
         pass
 
+    def can_preload(self) -> bool:
+        """True when loading at startup needs no network: weights are already local."""
+        return self.is_available()
+
     @abstractmethod
     def is_loaded(self) -> bool:
         """Returns True if model weights are currently resident in RAM/VRAM."""

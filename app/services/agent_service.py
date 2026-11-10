@@ -6,7 +6,6 @@ import urllib.request
 import uuid
 from collections.abc import Sequence
 
-import librosa
 import soundfile as sf
 
 from app.core.config import config_manager
@@ -39,6 +38,8 @@ def _model_file(model_id: str) -> str:
 
 def _wav_16k(audio: bytes) -> bytes:
     samples, rate = sf.read(io.BytesIO(audio), dtype="float32", always_2d=True)
+    import librosa
+
     mono = librosa.resample(samples.mean(axis=1), orig_sr=rate, target_sr=WHISPER_RATE)
     buffer = io.BytesIO()
     sf.write(buffer, mono, WHISPER_RATE, format="WAV", subtype="PCM_16")
