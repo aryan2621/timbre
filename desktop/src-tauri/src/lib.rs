@@ -29,7 +29,21 @@ fn spawn_backend(token: &str) -> std::io::Result<Child> {
         let name = if cfg!(windows) { "voiceclone-api.exe" } else { "voiceclone-api" };
         Command::new(exe.with_file_name(name))
     };
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut command, 0);
     command.env("VOICECLONE_API_TOKEN", token).spawn()
+}
+
+/// The onefile sidecar's bootloader forks the real Python server, so killing
+/// only the direct child orphans it on port 8756 with a stale token.
+fn kill_tree(child: &mut Child) {
+    let pid = child.id().to_string();
+    let _ = if cfg!(windows) {
+        Command::new("taskkill").args(["/T", "/F", "/PID", &pid]).status()
+    } else {
+        Command::new("kill").args(["-KILL", &format!("-{pid}")]).status()
+    };
+    let _ = child.kill();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -51,7 +65,7 @@ pub fn run() {
         .run(|app, event| {
             if let RunEvent::Exit = event {
                 if let Some(mut child) = app.state::<Backend>().child.lock().unwrap().take() {
-                    let _ = child.kill();
+                    kill_tree(&mut child);
                 }
             }
         });
