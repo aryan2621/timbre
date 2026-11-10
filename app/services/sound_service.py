@@ -115,9 +115,9 @@ class SoundJobManager(JobManager):
             raise RenderCancelled()
         job.current_chunk = step
         job.total_chunks = total
-        job.progress = round(step / total * 100.0, 2)
+        job.progress = round(step / max(total, 1) * 100.0, 2)
         job.message = f"Step {step} of {total}"
-        if step:
+        if step and total:
             job.eta = _format_eta((time.time() - started) / step * (total - step))
 
 
