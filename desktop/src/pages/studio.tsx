@@ -7,7 +7,6 @@ import {
   Mic2,
   Pause,
   Play,
-  SlidersHorizontal,
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -34,13 +33,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RenderProgress } from "@/components/studio/render-progress";
 import { Composer, Suggestions, type StudioMode } from "@/components/studio/composer";
 import { SoundResult, SoundSettings, EXAMPLES, PLACEHOLDERS, useSoundWorkspace } from "@/components/studio/sound-workspace";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { ParamControl } from "@/components/studio/param-control";
 import { EngineControls } from "@/components/studio/engine-controls";
 import { VOICE_PRESETS } from "@/components/studio/presets";
@@ -491,15 +483,6 @@ export function StudioPage() {
       sound.setPrompt(item);
     }
   };
-  const controls = (
-    <SheetTrigger
-      className="inline-flex size-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      aria-label={mode === "speech" ? "Open voice controls" : "Open sound controls"}
-      title={mode === "speech" ? "Voice controls" : "Sound controls"}
-    >
-      <SlidersHorizontal className="size-4" />
-    </SheetTrigger>
-  );
   const composer =
     mode === "speech" ? (
       <Composer
@@ -513,7 +496,6 @@ export function StudioPage() {
         canSubmit={!isRunning && !starting && !!voice && !!text.trim()}
         busy={starting || isRunning}
         trailing={voice?.name ?? "No voice selected"}
-        controls={controls}
       />
     ) : (
       <Composer
@@ -526,14 +508,14 @@ export function StudioPage() {
         canSubmit={sound.canGenerate}
         busy={soundBusy}
         maxLength={1000}
-        controls={controls}
       />
     );
 
   return (
-    <Sheet>
+    <>
       <LoadingOverlay show={loading} />
-      <div className={`-mx-4 -my-4 flex min-h-[calc(100dvh-3.5rem)] flex-col text-foreground md:-mx-6 md:-my-6 bg-background`}>
+      <div className="-mx-4 -my-4 flex min-h-[calc(100dvh-3.5rem)] text-foreground md:-mx-6 md:-my-6 bg-background">
+        <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/70 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-surface-accent text-primary">
@@ -657,10 +639,12 @@ export function StudioPage() {
           )}
         </section>
 
-        <SheetContent side="right" className="w-[460px] data-[side=right]:sm:max-w-[460px] max-h-screen">
-          <SheetHeader>
-            <SheetTitle>{mode === "speech" ? "Voice controls" : "Sound controls"}</SheetTitle>
-          </SheetHeader>
+        </div>
+        <aside
+          aria-label={mode === "speech" ? "Voice controls" : "Sound controls"}
+          className="w-[340px] shrink-0 overflow-y-auto border-l border-border/70 p-4"
+        >
+          <h2 className="mb-4 text-sm font-semibold">{mode === "speech" ? "Voice controls" : "Sound controls"}</h2>
           {mode === "speech" ? (
             <DrawerContent
               voice={voice}
@@ -681,8 +665,8 @@ export function StudioPage() {
             ) : (
             <SoundSettings workspace={sound} />
           )}
-        </SheetContent>
+        </aside>
       </div>
-    </Sheet>
+    </>
   );
 }

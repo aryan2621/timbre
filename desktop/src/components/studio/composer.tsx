@@ -1,6 +1,6 @@
 import { ArrowUp, Bell, BellRing, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,11 +25,10 @@ interface ComposerProps {
   busy: boolean;
   trailing?: string;
   maxLength?: number;
-  controls?: ReactNode;
 }
 
 export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function Composer(
-  { mode, onModeChange, value, onChange, onSubmit, placeholder, canSubmit, busy, trailing, maxLength, controls },
+  { mode, onModeChange, value, onChange, onSubmit, placeholder, canSubmit, busy, trailing, maxLength },
   ref,
 ) {
   const notify = useNotifyWhenDone();
@@ -82,7 +81,6 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
         </Tabs>
         <div className="flex items-center gap-3">
           {trailing ? <span className="hidden text-xs text-muted-foreground sm:inline">{trailing}</span> : null}
-          {controls}
           <Button size="icon" aria-label="Generate" disabled={!canSubmit} onClick={onSubmit}>
             {busy ? <Loader2 className="animate-spin" /> : <ArrowUp />}
           </Button>
