@@ -18,7 +18,9 @@ cd "$ROOT"
   --collect-all pocket_tts --copy-metadata pocket-tts \
   --collect-submodules diffusers --copy-metadata diffusers \
   --collect-all torchsde --copy-metadata torchsde \
-  --collect-submodules transformers.models.musicgen \
+  --collect-submodules transformers \
+  --collect-all chatterbox --collect-all perth --copy-metadata chatterbox-tts \
+  --collect-all s3tokenizer --collect-all conformer --copy-metadata resemble-perth --copy-metadata s3tokenizer --copy-metadata conformer \
   --copy-metadata transformers --copy-metadata requests --copy-metadata tqdm \
   --copy-metadata regex --copy-metadata packaging --copy-metadata filelock \
   --copy-metadata numpy --copy-metadata tokenizers --copy-metadata huggingface-hub \

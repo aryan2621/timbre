@@ -29,7 +29,7 @@ from app.services import agent_service
 
 logger = get_logger("api")
 
-API_VERSION = "0.1.4"
+API_VERSION = "0.1.5"
 DEFAULT_PORT = 8756
 
 
