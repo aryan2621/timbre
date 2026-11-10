@@ -60,7 +60,8 @@ const EMPTY_FORM = { name: "", language: "en", referencePath: "", notes: "" };
 export function VoicesPage() {
   const { status: connection } = useEngineStatus();
   const online = connection !== "offline";
-  const { intent, consumeIntent } = useApp();
+  const { intent, consumeIntent, page } = useApp();
+  const active = page === "voices";
 
   const [voices, setVoices] = useState<VoiceProfile[]>([]);
   const [engines, setEngines] = useState<EngineInfo[]>(demoList(mockEngines));
@@ -98,7 +99,7 @@ export function VoicesPage() {
     }
   }, [online]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (active) void load(); }, [load, active]);
   useEffect(() => () => { audioRef.current?.pause(); }, []);
 
   useEffect(() => {

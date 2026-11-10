@@ -1,5 +1,5 @@
-import { Suspense, lazy, useEffect, useMemo } from "react";
-import { motion } from "motion/react";
+import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType } from "react";
+import type { PageKey } from "@/lib/pages";
 import { settingsNav } from "@/lib/settings-nav";
 import { AppSidebar } from "@/components/app-shell/app-sidebar";
 import { AppHeader } from "@/components/app-shell/app-header";
@@ -9,6 +9,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ExportDialog } from "@/components/export-dialog";
 import { EngineLoader } from "@/components/app-shell/engine-loader";
 import { AppProvider, useApp } from "@/lib/app-context";
 import { EngineStatusProvider, useEngineStatus } from "@/lib/engine-status";
@@ -16,7 +17,6 @@ import { ThemeProvider, useTheme } from "@/lib/theme";
 import { useHashRoute } from "@/lib/use-router";
 import { useHotkeys } from "@/lib/use-hotkeys";
 import { NAVIGATION_SHORTCUTS } from "@/lib/shortcuts";
-import { pageVariants } from "@/lib/motion";
 
 // Route-level code splitting: each page is only downloaded when first visited,
 // keeping the initial studio bundle lean and startup fast.
@@ -27,6 +27,16 @@ const AgentsPage = lazy(() => import("@/pages/agents").then((m) => ({ default: m
 const HistoryPage = lazy(() => import("@/pages/history").then((m) => ({ default: m.HistoryPage })));
 const ModelsPage = lazy(() => import("@/pages/models").then((m) => ({ default: m.ModelsPage })));
 const SettingsPage = lazy(() => import("@/pages/settings").then((m) => ({ default: m.SettingsPage })));
+
+const PAGES: [PageKey, ComponentType][] = [
+  ["studio", StudioPage],
+  ["voices", VoicesPage],
+  ["batch", BatchPage],
+  ["agents", AgentsPage],
+  ["history", HistoryPage],
+  ["models", ModelsPage],
+  ["settings", SettingsPage],
+];
 
 function PageSkeleton() {
   return (
@@ -98,6 +108,10 @@ function Shell() {
   }, [page]);
 
   const { status } = useEngineStatus();
+  const [visited, setVisited] = useState<PageKey[]>([page]);
+  useEffect(() => {
+    setVisited((previous) => (previous.includes(page) ? previous : [...previous, page]));
+  }, [page]);
 
   return (
     <SidebarProvider>
@@ -113,27 +127,21 @@ function Shell() {
 
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1440px] p-4 md:p-6">
-              <motion.div
-                key={page}
-                variants={pageVariants}
-                initial="initial"
-                animate="animate"
-              >
-                <Suspense fallback={<PageSkeleton />}>
-                  {page === "studio" && <StudioPage />}
-                  {page === "voices" && <VoicesPage />}
-                  {page === "batch" && <BatchPage />}
-                  {page === "agents" && <AgentsPage />}
-                  {page === "history" && <HistoryPage />}
-                  {page === "models" && <ModelsPage />}
-                  {page === "settings" && <SettingsPage />}
-                </Suspense>
-              </motion.div>
+              {PAGES.map(([key, Component]) =>
+                visited.includes(key) ? (
+                  <div key={key} hidden={page !== key}>
+                    <Suspense fallback={<PageSkeleton />}>
+                      <Component />
+                    </Suspense>
+                  </div>
+                ) : null,
+              )}
           </div>
         </main>
       </SidebarInset>
 
       <CommandPalette />
+      <ExportDialog />
       <ShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </SidebarProvider>
   );

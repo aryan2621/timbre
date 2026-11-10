@@ -1,5 +1,6 @@
-import { Cpu, Loader2 } from "lucide-react";
+import { Cpu } from "lucide-react";
 import { cn } from "cn";
+import { SoundBars } from "@/components/ui/sound-bars";
 import { useEngineStatus } from "@/lib/engine-status";
 
 export function EngineStatusBlock({ className }: { className?: string }) {
@@ -14,7 +15,7 @@ export function EngineStatusBlock({ className }: { className?: string }) {
     >
       <div className="flex items-center gap-2">
         {status === "connecting" ? (
-          <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
+          <SoundBars className="h-3 shrink-0 text-muted-foreground" />
         ) : (
           <span
             className={cn(

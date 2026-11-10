@@ -1,4 +1,5 @@
-import { ArrowUp, Bell, BellRing, Loader2 } from "lucide-react";
+import { ArrowUp, Bell, BellRing } from "lucide-react";
+import { SoundBars } from "@/components/ui/sound-bars";
 import { toast } from "sonner";
 import { forwardRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -82,7 +83,7 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
         <div className="flex items-center gap-3">
           {trailing ? <span className="hidden text-xs text-muted-foreground sm:inline">{trailing}</span> : null}
           <Button size="icon" aria-label="Generate" disabled={!canSubmit} onClick={onSubmit}>
-            {busy ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+            {busy ? <SoundBars className="h-3.5 text-current" /> : <ArrowUp />}
           </Button>
         </div>
       </div>

@@ -79,7 +79,7 @@ const ROW_HEIGHT = 56;
 export function HistoryPage() {
   const { status: connection } = useEngineStatus();
   const online = connection !== "offline";
-  const { navigate } = useApp();
+  const { navigate, page } = useApp();
 
   const [query, setQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "created_at", desc: true }]);
@@ -95,7 +95,7 @@ export function HistoryPage() {
     setConfirmClear,
     remove,
     clearAll,
-  } = useHistoryEntries(online);
+  } = useHistoryEntries(online, page === "history");
 
   const { playingId, progress, peaksById, preview, ensurePeaks, exportEntry } =
     useHistoryPlayback(online);

@@ -11,13 +11,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { toast } from "sonner";
-import { api, fetchAudioBlob } from "@/lib/api";
-import {
-  downloadBlob,
-  IS_TAURI,
-  pickSavePath,
-  writeBlobToPath,
-} from "@/lib/desktop";
+import { api } from "@/lib/api";
+import { exportAudio } from "@/lib/export-audio";
 import { mockHistory, demoList } from "@/lib/mock";
 import type { HistoryEntry } from "@/lib/types";
 
@@ -44,6 +39,7 @@ export interface HistoryEntries {
  */
 export function useHistoryEntries(
   online: boolean,
+  active = true,
   onCleared?: () => void,
 ): HistoryEntries {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
@@ -52,6 +48,7 @@ export function useHistoryEntries(
   const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     async function load() {
       if (!online) {
@@ -74,7 +71,7 @@ export function useHistoryEntries(
     return () => {
       cancelled = true;
     };
-  }, [online]);
+  }, [online, active]);
 
   const remove = useCallback(async () => {
     const entry = pendingDelete;
@@ -195,9 +192,11 @@ export function useHistoryPlayback(online: boolean): HistoryPlayback {
   );
 
   /** Loads the waveform of a take the first time its row becomes visible. */
+  const requestedPeaks = useRef<Set<number>>(new Set());
   const ensurePeaks = useCallback(
     (entryId: number) => {
-      if (peaksById[entryId] || !online) return;
+      if (peaksById[entryId] || !online || requestedPeaks.current.has(entryId)) return;
+      requestedPeaks.current.add(entryId);
       void api
         .getHistoryPeaks(entryId)
         .then((result) => {
@@ -214,22 +213,7 @@ export function useHistoryPlayback(online: boolean): HistoryPlayback {
   );
 
   const exportEntry = useCallback(async (entry: HistoryEntry) => {
-    try {
-      const blob = await fetchAudioBlob(api.audioUrl(`/api/history/${entry.id}/audio`));
-      const filename = `${entry.voice_name || "voiceclone"}-${entry.id}.wav`;
-      if (IS_TAURI) {
-        const path = await pickSavePath(filename, "wav");
-        if (!path) return;
-        if (await writeBlobToPath(path, blob)) {
-          toast.success("Export saved", { description: path });
-          return;
-        }
-      }
-      downloadBlob(blob, filename);
-      toast.success("Export started", { description: filename });
-    } catch {
-      toast.error("Export failed");
-    }
+    exportAudio(api.audioUrl(`/api/history/${entry.id}/audio`), entry.voice_name || "voiceclone");
   }, []);
 
   return { playingId, progress, peaksById, preview, ensurePeaks, exportEntry, audioRef };

@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
+import { cn } from "cn";
+import { SoundBars } from "@/components/ui/sound-bars";
 
 const EXPECTED_SECONDS = 15;
 const STEPS = [
@@ -30,25 +33,38 @@ export function EngineLoader({ show }: { show: boolean }) {
       aria-live="polite"
       className="fixed inset-0 z-50 grid place-items-center bg-background cursor-wait"
     >
-      <div className="w-72 space-y-4">
-        <div className="space-y-1">
-          <p className="text-base font-medium">Starting Timbre</p>
+      <div className="reveal-up flex w-80 flex-col items-center gap-8">
+        <SoundBars count={28} className="h-14 gap-[3px] text-primary [&>span]:w-[3px]" />
+        <div className="space-y-1 text-center">
+          <p className="text-lg font-semibold tracking-tight">Timbre</p>
           <p className="text-sm text-muted-foreground">
-            {slow ? "Still starting, this machine is slower than usual" : `${STEPS[step]}…`}
+            {slow ? "Still starting, this machine is slower than usual" : "Starting your local voice engine"}
           </p>
         </div>
-        <div
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(progress * 100)}
-          className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
-        >
-          <div
-            className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
-            style={{ width: `${Math.round(progress * 100)}%` }}
-          />
-        </div>
+        <ol className="w-full space-y-2 text-sm">
+          {STEPS.map((label, index) => (
+            <li
+              key={label}
+              className={cn(
+                "flex items-center gap-3 transition-colors duration-150",
+                index < step && "text-muted-foreground",
+                index === step && "text-foreground",
+                index > step && "text-muted-foreground/50",
+              )}
+            >
+              <span className="grid h-4 w-6 shrink-0 place-items-center">
+                {index < step ? (
+                  <Check className="size-3.5 text-primary" />
+                ) : index === step ? (
+                  <SoundBars count={3} className="h-3 gap-[2px] [&>span]:w-[2px]" />
+                ) : (
+                  <span className="size-1 rounded-full bg-current" />
+                )}
+              </span>
+              {label}
+            </li>
+          ))}
+        </ol>
         <p className="text-xs tabular-nums text-muted-foreground">{Math.floor(elapsed)}s</p>
       </div>
     </div>

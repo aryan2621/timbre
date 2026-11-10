@@ -4,21 +4,12 @@ import {
   AudioLines,
   Download,
   Languages,
-  Mic2,
   Pause,
   Play,
-  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Select,
@@ -43,12 +34,7 @@ import {
 } from "@/components/waveform/waveform-player";
 import { useEngineSelection, useLibrary, useSynthesisJob } from "@/hooks/use-studio";
 import { useApp, useAppActions } from "@/lib/app-context";
-import {
-  downloadBlob,
-  IS_TAURI,
-  pickSavePath,
-  writeBlobToPath,
-} from "@/lib/desktop";
+import { exportAudio } from "@/lib/export-audio";
 import { useEngineStatus } from "@/lib/engine-status";
 import {
   formatTimecode,
@@ -121,18 +107,16 @@ function DrawerContent({
   setVoice: (v: VoiceProfile | null) => void;
 }) {
   return (
-    <div className="flex flex-col gap-4 h-full px-7 pb-7">
-      <Card className="flex-shrink-0 py-6">
-        <CardHeader className="px-6 pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Mic2 className="size-4 text-primary" />
-            Source
-          </CardTitle>
-          <CardDescription>
-            The speaker, the engine and the language of this render.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-6 flex flex-col gap-3">
+    <div className="flex flex-col gap-6">
+      <Tabs defaultValue="source" className="gap-4 flex flex-col">
+        <TabsList className="w-full flex-shrink-0">
+          <TabsTrigger value="source">Source</TabsTrigger>
+          <TabsTrigger value="voice">Voice</TabsTrigger>
+          <TabsTrigger value="prosody">Prosody</TabsTrigger>
+          <TabsTrigger value="delivery">Delivery</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="source" className="flex flex-col gap-3">
           <Field>
             <FieldLabel>Reference voice</FieldLabel>
             <VoicePicker
@@ -201,37 +185,17 @@ function DrawerContent({
               {activeEngine?.supported_languages.length ?? 1} supported
             </p>
           </Field>
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      <Card className="flex-1 min-h-0 flex flex-col py-6">
-        <Tabs defaultValue="prosody" className="gap-0 flex-1 flex flex-col">
-          <CardHeader className="px-6 pb-3 flex-shrink-0">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Wand2 className="size-4 text-primary" />
-              Delivery
-            </CardTitle>
-            <CardDescription>
-              How the voice should sound and how fast it should read.
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="px-6 space-y-4 flex-1 overflow-y-auto">
-            <TabsList className="w-full flex-shrink-0">
-              <TabsTrigger value="voice">Voice</TabsTrigger>
-              <TabsTrigger value="prosody">Prosody</TabsTrigger>
-              <TabsTrigger value="delivery">Delivery</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="voice" className="space-y-4 flex-1">
-              <div className="rounded-md border border-border bg-surface-inset p-4">
+            <TabsContent value="voice" className="space-y-4">
+              <div className="space-y-2">
                 <p className="text-xs font-medium text-foreground">
                   {voice?.name ?? "No voice selected"}
                 </p>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-sm leading-relaxed text-muted-foreground">
                   {voice?.notes || "No notes for this profile."}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <Badge variant="outline">
                     {voice?.language.toUpperCase() ?? "—"}
                   </Badge>
@@ -241,14 +205,16 @@ function DrawerContent({
                 </div>
               </div>
 
-              <div className="rounded-md border border-border bg-surface-inset p-4">
+              <Separator />
+
+              <div className="space-y-2">
                 <p className="text-xs font-medium text-foreground">
                   {activeEngine?.name ?? "No engine"}
                 </p>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                <p className="text-sm leading-relaxed text-muted-foreground">
                   {activeEngine?.license_notice}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <Badge variant="outline">
                     {activeEngine?.native_sample_rate ?? 24000} Hz
                   </Badge>
@@ -264,12 +230,14 @@ function DrawerContent({
                 </div>
               </div>
 
-              <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-surface-inset p-4">
+              <Separator />
+
+              <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-medium text-foreground">
                     Perth acoustic watermark
                   </p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
                     Embeds an imperceptible signature so the origin of a
                     render can be verified.
                   </p>
@@ -364,21 +332,20 @@ function DrawerContent({
                 />
               ) : null}
             </TabsContent>
-          </CardContent>
-        </Tabs>
-      </Card>
+      </Tabs>
     </div>
   );
 }
 
 export function StudioPage() {
   const { status: connection } = useEngineStatus();
-  const { navigate } = useApp();
+  const { navigate, page } = useApp();
+  const active = page === "studio";
   const online = connection !== "offline";
   const [mode, setMode] = useState<StudioMode>("speech");
-  const sound = useSoundWorkspace(mode === "music" ? "music" : "sfx", online);
+  const sound = useSoundWorkspace(mode === "music" ? "music" : "sfx", online, active);
 
-  const { voices, engines, loading, voice, setVoice } = useLibrary(online);
+  const { voices, engines, loading, voice, setVoice } = useLibrary(online, active);
   const { engineName, setEngineName, activeEngine, params, update } =
     useEngineSelection(engines);
   const [text, setText] = useState("");
@@ -408,31 +375,13 @@ export function StudioPage() {
 
   const peaks = job?.peaks?.length ? job.peaks : null;
 
-  const exportAudio = useCallback(async () => {
+  const startExport = useCallback(() => {
     if (!audioUrl) {
       toast.error("There is nothing to export yet");
       return;
     }
-    try {
-      const response = await fetch(audioUrl);
-      const blob = await response.blob();
-      const filename = `voiceclone-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.wav`;
-
-      if (IS_TAURI) {
-        const path = await pickSavePath(filename, "wav");
-        if (!path) return;
-        const written = await writeBlobToPath(path, blob);
-        if (written) {
-          toast.success("Export saved", { description: path });
-          return;
-        }
-      }
-      downloadBlob(blob, filename);
-      toast.success("Export started", { description: filename });
-    } catch {
-      toast.error("Export failed");
-    }
-  }, [audioUrl]);
+    exportAudio(audioUrl, voice?.name ?? "voice");
+  }, [audioUrl, voice]);
 
   const togglePlayback = useCallback(() => {
     waveformRef.current?.playPause();
@@ -445,7 +394,7 @@ export function StudioPage() {
 
   useAppActions({
     runSynthesis: () => void synthesize(),
-    exportRender: () => void exportAudio(),
+    exportRender: startExport,
     clearScript,
     focusScript: () => scriptRef.current?.focus(),
     togglePlayback,
@@ -455,16 +404,16 @@ export function StudioPage() {
     useMemo(
       () => ({
         "mod+enter": () => void synthesize(),
-        "mod+e": () => void exportAudio(),
+        "mod+e": startExport,
         "mod+backspace": clearScript,
         "mod+shift+t": () => scriptRef.current?.focus(),
         space: () => togglePlayback(),
         arrowleft: () => waveformRef.current?.skip(-2),
         arrowright: () => waveformRef.current?.skip(2),
       }),
-      [clearScript, exportAudio, synthesize, togglePlayback],
+      [clearScript, startExport, synthesize, togglePlayback],
     ),
-    { allowInInputs: false },
+    { enabled: active, allowInInputs: false },
   );
 
   const soundBusy = sound.starting || sound.isRunning;
@@ -615,7 +564,7 @@ export function StudioPage() {
                     <div className="mt-3 flex items-center gap-4">
                       <button
                         type="button"
-                        onClick={() => void exportAudio()}
+                        onClick={startExport}
                         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
                       >
                         <Download className="size-3.5" />
@@ -642,7 +591,7 @@ export function StudioPage() {
         </div>
         <aside
           aria-label={mode === "speech" ? "Voice controls" : "Sound controls"}
-          className="w-[340px] shrink-0 overflow-y-auto border-l border-border/70 p-4"
+          className="w-[440px] shrink-0 overflow-y-auto border-l border-border/70 p-4"
         >
           <h2 className="mb-4 text-sm font-semibold">{mode === "speech" ? "Voice controls" : "Sound controls"}</h2>
           {mode === "speech" ? (

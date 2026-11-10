@@ -11,16 +11,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowDownToLine, Check, Trash2 } from "lucide-react";
-import { activeModels, useActiveModels } from "@/lib/active-models";
-import { Badge } from "@/components/ui/badge";
+import { ArrowDownToLine, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PAGE_DESCRIPTIONS, PAGE_TITLES } from "@/lib/pages";
 import { PageHeader } from "@/components/ui/page-header";
-import { Progress } from "@/components/ui/progress";
+import { SoundBars } from "@/components/ui/sound-bars";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
+import { useApp } from "@/lib/app-context";
 import { useEngineStatus } from "@/lib/engine-status";
 import { formatBytes } from "@/lib/format";
 import { mockModels, demoList } from "@/lib/mock";
@@ -46,6 +45,7 @@ const CATEGORY_ORDER = Object.keys(CATEGORY_LABELS) as ModelCategory[];
 
 export function ModelsPage() {
   const { status: connection } = useEngineStatus();
+  const active = useApp().page === "models";
   const online = connection !== "offline";
 
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -64,14 +64,13 @@ export function ModelsPage() {
       return;
     }
     try {
-      const [next, nextSpecs, nextStatus] = await Promise.all([
+      void api.getHuggingFaceStatus().then(setHfStatus).catch(() => setHfStatus(null));
+      const [next, nextSpecs] = await Promise.all([
         api.listModels(),
         api.getSystemSpecs().catch(() => null),
-        api.getHuggingFaceStatus().catch(() => null),
       ]);
       setModels(next);
       setSpecs(nextSpecs);
-      setHfStatus(nextStatus);
       setDownloads((previous) => {
         const merged = { ...previous };
         for (const model of next) {
@@ -89,8 +88,8 @@ export function ModelsPage() {
   }, [online]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (active) void load();
+  }, [load, active]);
 
   const activeIds = useMemo(
     () =>
@@ -212,10 +211,6 @@ export function ModelsPage() {
   })).filter((section) => section.items.length > 0);
   const activeTab = sections.some((section) => section.category === tab) ? tab : (sections[0]?.category ?? tab);
   const activeItems = sections.find((section) => section.category === activeTab)?.items ?? [];
-  const isSelectable = (model: ModelInfo) => !model.id.startsWith("agent-whisper");
-  const chosen = useActiveModels()[activeTab];
-  const installedSelectable = activeItems.filter((model) => isSelectable(model) && model.is_downloaded);
-  const inUse = installedSelectable.find((model) => model.id === chosen)?.id ?? installedSelectable[0]?.id;
   const installedCount = models.filter((model) => model.is_downloaded).length;
   const hasGated = models.some((model) => model.requires_token);
 
@@ -285,7 +280,6 @@ export function ModelsPage() {
                   <div className="min-w-0 space-y-0.5">
                     <p className="flex items-center gap-2 text-sm font-medium">
                       {model.name}
-                      {model.id === inUse ? <Badge variant="secondary">In use</Badge> : null}
                     </p>
                     <p className="text-xs text-muted-foreground">{model.license_notice}</p>
                     <p className="text-xs text-muted-foreground">
@@ -300,7 +294,7 @@ export function ModelsPage() {
                   <div className="flex shrink-0 items-center gap-2">
                     {active ? (
                       <>
-                        <Progress value={percent} className="w-28" />
+                        <SoundBars />
                         <span data-numeric className="w-24 text-xs text-muted-foreground">
                           {percent.toFixed(0)}%{job?.speed_mb_s ? ` · ${job.speed_mb_s.toFixed(1)} MB/s` : ""}
                         </span>
@@ -310,11 +304,6 @@ export function ModelsPage() {
                       </>
                     ) : model.is_downloaded ? (
                       <>
-                        {isSelectable(model) && model.id !== inUse ? (
-                          <Button variant="outline" size="sm" onClick={() => activeModels.set(activeTab, model.id)}>
-                            <Check /> Use
-                          </Button>
-                        ) : null}
                         <Button
                           variant="ghost"
                           size="icon-sm"

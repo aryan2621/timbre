@@ -19,12 +19,12 @@ export interface SoundRequest {
   params: SoundParams;
 }
 
-export function useSoundEngines(online: boolean) {
+export function useSoundEngines(online: boolean, active = true) {
   const [engines, setEngines] = useState<SoundEngineInfo[]>([]);
   const [loading, setLoading] = useState(online);
 
   useEffect(() => {
-    if (!online) return;
+    if (!online || !active) return;
     let cancelled = false;
     api
       .listSoundEngines()
@@ -34,7 +34,7 @@ export function useSoundEngines(online: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [online]);
+  }, [online, active]);
 
   return { engines, loading };
 }

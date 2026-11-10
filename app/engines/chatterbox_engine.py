@@ -266,7 +266,7 @@ class ChatterboxEngine(TTSEngine):
             return True
 
         except Exception as e:
-            logger.error("Failed to load Chatterbox model: %s", e)
+            logger.exception("Failed to load Chatterbox model: %r", e)
             self._is_loaded = False
             return False
 

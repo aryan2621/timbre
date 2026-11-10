@@ -19,7 +19,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAgentChat } from "@/hooks/use-agent-chat";
 import { useRecorder } from "@/hooks/use-recorder";
 import { useEngineSelection, useLibrary } from "@/hooks/use-studio";
-import { useActiveModels } from "@/lib/active-models";
 import { api } from "@/lib/api";
 import { AGENT_ICONS } from "@/lib/agent-icons";
 import { useEngineStatus } from "@/lib/engine-status";
@@ -133,7 +132,6 @@ export function AgentsPage() {
   const [icon, setIcon] = useState("bot");
   const [llmModels, setLlmModels] = useState<ModelInfo[]>([]);
   const [llmModel, setLlmModel] = useState("agent-llm");
-  const chosenLlm = useActiveModels()["voice-agent"];
   const [servers, setServers] = useState<McpServerDraft[]>([]);
   const [draft, setDraft] = useState<McpServerDraft>({ name: "", url: "", token: "" });
   const [checking, setChecking] = useState(false);
@@ -148,12 +146,12 @@ export function AgentsPage() {
         {
           const installed = models.filter((model) => model.id.startsWith("agent-llm") && model.is_downloaded);
           setLlmModels(installed);
-          setLlmModel((current) => installed.find((model) => model.id === chosenLlm)?.id ?? (installed.some((model) => model.id === current) ? current : (installed[0]?.id ?? current)));
+          setLlmModel((current) => installed.some((model) => model.id === current) ? current : (installed[0]?.id ?? current));
         },
       )
       .catch(() => setLlmModels([]));
     api.listAgents().then(setAgents).catch(() => setAgents([])).finally(() => setLoaded(true));
-  }, [online, chosenLlm]);
+  }, [online]);
 
   const create = async () => {
     try {

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { SoundBars } from "@/components/ui/sound-bars";
 import { RenderProgress } from "@/components/studio/render-progress";
 import { ParamControl } from "@/components/studio/param-control";
 import { EngineControls } from "@/components/studio/engine-controls";
@@ -21,7 +22,6 @@ import {
 } from "@/components/waveform/waveform-player";
 import { useSoundEngines, useSoundJob } from "@/hooks/use-sound-studio";
 import { useApp } from "@/lib/app-context";
-import { useActiveModels } from "@/lib/active-models";
 import { exportAudio } from "@/lib/export-audio";
 import { formatTimecode } from "@/lib/format";
 import type { SoundKind, SoundParams } from "@/lib/types";
@@ -46,8 +46,8 @@ export const EXAMPLES: Record<SoundKind, string[]> = {
 
 const MAX_SEED = 99_999_999;
 
-export function useSoundWorkspace(kind: SoundKind, online: boolean) {
-  const { engines, loading } = useSoundEngines(online);
+export function useSoundWorkspace(kind: SoundKind, online: boolean, active: boolean) {
+  const { engines, loading } = useSoundEngines(online, active);
 
   const [engineName, setEngineName] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -58,10 +58,8 @@ export function useSoundWorkspace(kind: SoundKind, online: boolean) {
   const { job, starting, isRunning, audioUrl, generate, cancel } = useSoundJob();
 
   const candidates = engines.filter((item) => item.kinds.includes(kind));
-  const chosenModel = useActiveModels()[kind === "music" ? "music" : "sound"];
   const engine =
     candidates.find((item) => item.name === engineName) ??
-    candidates.find((item) => item.model_id === chosenModel && item.is_available) ??
     candidates.find((item) => item.is_available) ??
     candidates[0];
   const params = engine
@@ -170,9 +168,23 @@ export function SoundResult({ workspace }: { workspace: SoundWorkspace }) {
 }
 
 export function SoundSettings({ workspace }: { workspace: SoundWorkspace }) {
-  const { engine, candidates, params, patch, randomSeed, setRandomSeed, setEngineName } = workspace;
+  const { engine, candidates, params, patch, randomSeed, setRandomSeed, setEngineName, loading, blocker, online } = workspace;
+  const { navigate } = useApp();
+  if (!engine) {
+    return (
+      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+        {loading && online ? <SoundBars /> : null}
+        <span>{loading && online ? "Loading sound engines…" : blocker ?? "No sound engine is installed."}</span>
+        {!loading && online ? (
+          <Button size="sm" variant="outline" onClick={() => navigate("models")}>
+            Open Models
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
   return (
-    <div className="space-y-4 overflow-y-auto px-4 pb-4">
+    <div className="space-y-4 overflow-y-auto">
       {engine?.supports_lyrics && params ? (
         <Field className="gap-2">
           <FieldLabel htmlFor="sound-lyrics">Lyrics (optional)</FieldLabel>
@@ -208,8 +220,8 @@ export function SoundSettings({ workspace }: { workspace: SoundWorkspace }) {
               value={params.duration_seconds}
               min={1}
               max={engine.max_duration_seconds}
-              step={engine.max_duration_seconds > 60 ? 5 : 1}
-              digits={0}
+              step={0.5}
+              digits={1}
               suffix=" s"
               resetValue={engine.default_params.duration_seconds}
               onChange={(value) => patch({ duration_seconds: value })}

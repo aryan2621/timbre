@@ -13,7 +13,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { useActiveModels } from "@/lib/active-models";
 import { formatDuration } from "@/lib/format";
 import { IS_TAURI } from "@/lib/desktop";
 import { notifyDone } from "@/lib/notify";
@@ -43,6 +42,7 @@ export interface Library {
  * fail every render with "Voice not found", so an unreachable engine shows an
  * empty library instead.
  */
+const LOAD_RETRY_MS = 2000;
 const VOICES_CACHE_KEY = "timbre.voices";
 
 function cachedVoices(): VoiceProfile[] {
@@ -61,14 +61,17 @@ function cacheVoices(voices: VoiceProfile[]): void {
   }
 }
 
-export function useLibrary(online: boolean): Library {
+export function useLibrary(online: boolean, active = true): Library {
   const [voices, setVoices] = useState<VoiceProfile[]>(cachedVoices);
   const [engines, setEngines] = useState<EngineInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [voice, setVoice] = useState<VoiceProfile | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     async function load() {
       const fallback = () => {
         setVoices(IS_TAURI ? cachedVoices() : demoList(mockVoices));
@@ -91,7 +94,10 @@ export function useLibrary(online: boolean): Library {
         cacheVoices(nextVoices);
         setEngines(nextEngines);
       } catch {
-        if (!cancelled) fallback();
+        if (!cancelled) {
+          fallback();
+          retry = setTimeout(() => setAttempt((n) => n + 1), LOAD_RETRY_MS);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -99,8 +105,9 @@ export function useLibrary(online: boolean): Library {
     void load();
     return () => {
       cancelled = true;
+      clearTimeout(retry);
     };
-  }, [online]);
+  }, [online, attempt, active]);
 
   useEffect(() => {
     if (!voices.length) return;
@@ -136,18 +143,12 @@ export interface EngineSelection {
  */
 export function useEngineSelection(engines: EngineInfo[]): EngineSelection {
   const [engineName, setEngineName] = useState("Chatterbox TTS");
-  const chosenModel = useActiveModels()["voice-cloning"];
   const [params, setParams] = useState<SynthesisParams>(mockEngines[0].default_params);
 
   const activeEngine = useMemo(
     () => engines.find((engine) => engine.name === engineName) ?? engines[0],
     [engineName, engines],
   );
-
-  useEffect(() => {
-    const chosen = engines.find((engine) => engine.model_id === chosenModel && engine.is_available);
-    if (chosen) setEngineName(chosen.name);
-  }, [engines, chosenModel]);
 
   useEffect(() => {
     if (!engines.length) return;

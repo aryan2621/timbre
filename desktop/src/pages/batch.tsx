@@ -1,14 +1,12 @@
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ComponentType } from "react";
 import {
   CircleCheck,
   CircleDashed,
   CircleX,
-  Clock,
   FileUp,
   FolderOpen,
   Layers,
-  Loader2,
   Play,
   Square,
   Trash2,
@@ -25,7 +23,7 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { PageHeader, StatChip } from "@/components/ui/page-header";
-import { Progress } from "@/components/ui/progress";
+import { SoundBars } from "@/components/ui/sound-bars";
 import {
   Select,
   SelectContent,
@@ -44,9 +42,13 @@ import {
   useScriptImport,
 } from "@/hooks/use-batch";
 
+function RunningIcon({ className }: { className?: string }) {
+  return <SoundBars count={3} className={className} />;
+}
+
 const STATE_STYLE: Record<
   string,
-  { label: string; className: string; icon: typeof Clock }
+  { label: string; className: string; icon: ComponentType<{ className?: string }> }
 > = {
   pending: {
     label: "Queued",
@@ -56,7 +58,7 @@ const STATE_STYLE: Record<
   running: {
     label: "Rendering",
     className: "text-muted-foreground",
-    icon: Loader2,
+    icon: RunningIcon,
   },
   done: {
     label: "Rendered",
@@ -178,7 +180,7 @@ export function BatchPage() {
               </Button>
             ) : (
               <Button onClick={() => void start(lines, outputDir)} disabled={!lines.length || starting}>
-                {starting ? <Loader2 className="animate-spin" /> : <Play />}
+                {starting ? <SoundBars className="h-3.5 text-current" /> : <Play />}
                 Start batch
               </Button>
             )}
@@ -285,7 +287,6 @@ export function BatchPage() {
 
           {job ? (
             <div className="mt-3 space-y-1.5">
-              <Progress value={job.progress} />
               <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                 <span>{job.message}</span>
                 {running && job.eta ? <span>~{job.eta} left</span> : null}
@@ -359,9 +360,7 @@ export function BatchPage() {
                     <span
                       className={`inline-flex shrink-0 items-center gap-1 text-xs ${style.className}`}
                     >
-                      <StateIcon
-                        className={`size-3 ${state === "running" ? "animate-spin" : ""}`}
-                      />
+                      <StateIcon className="size-3 shrink-0" />
                       {style.label}
                     </span>
                   </li>
