@@ -9,7 +9,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { EngineLoader } from "@/components/app-shell/engine-loader";
 import { AppProvider, useApp } from "@/lib/app-context";
 import { EngineStatusProvider, useEngineStatus } from "@/lib/engine-status";
 import { ThemeProvider, useTheme } from "@/lib/theme";
@@ -101,7 +101,7 @@ function Shell() {
 
   return (
     <SidebarProvider>
-      <LoadingOverlay show={status === "connecting"} label="Starting engine…" />
+      <EngineLoader show={status === "connecting"} />
       <AppSidebar
         page={page}
         onNavigate={navigate}
