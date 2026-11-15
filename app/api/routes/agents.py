@@ -1,13 +1,14 @@
+import re
 import threading
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.data.agent_repo import DuplicateAgent, agent_repo
 from app.data.voice_repo import voice_repo
 from app.runtimes.native import NativeUnavailable
-from app.services import agent_service, mcp_client
+from app.services import agent_service, llm_providers, mcp_client
 
 router = APIRouter()
 
@@ -28,8 +29,16 @@ class AgentIn(BaseModel):
     voice_id: int | None = None
     system_prompt: str = Field(min_length=1, max_length=4000)
     icon: str = Field("bot", max_length=30)
-    llm_model: str = Field("agent-llm", max_length=60, pattern=r"^agent-llm[a-z0-9-]*$")
+    llm_provider: Literal["local", "ollama"] = "local"
+    llm_model: str = Field("agent-llm", max_length=100, pattern=r"^[\w.:/-]+$")
     mcp_servers: list[McpServerIn] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="after")
+    def _model_matches_provider(self):
+        local_id = re.fullmatch(r"agent-llm[a-z0-9-]*", self.llm_model) is not None
+        if (self.llm_provider == "local") != local_id:
+            raise ValueError("Pick a model that belongs to the chosen provider.")
+        return self
 
 
 class Turn(BaseModel):
@@ -82,7 +91,8 @@ def create_agent(payload: AgentIn) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
         created = agent_repo.create(
-            payload.name.strip(), payload.voice_id, payload.system_prompt.strip(), payload.icon, servers, payload.llm_model
+            payload.name.strip(), payload.voice_id, payload.system_prompt.strip(), payload.icon, servers, payload.llm_model,
+            payload.llm_provider,
         )
         return _public(created)
     except DuplicateAgent as exc:
@@ -122,4 +132,9 @@ async def transcribe(request: Request) -> dict[str, str]:
 def agent_reply(agent_id: int, payload: ReplyRequest) -> dict[str, str]:
     agent = _agent_or_404(agent_id)
     messages = [turn.model_dump() for turn in payload.messages]
-    return {"text": _run(agent_service.reply, agent["system_prompt"], messages, agent["mcp_servers"], agent["llm_model"])}
+    return {"text": _run(agent_service.reply, agent["system_prompt"], messages, agent["mcp_servers"], agent["llm_model"], agent["llm_provider"])}
+
+
+@router.get("/api/llm/models")
+def llm_models(provider: Literal["ollama"]) -> dict[str, list[str]]:
+    return {"models": _run(llm_providers.list_models, provider)}

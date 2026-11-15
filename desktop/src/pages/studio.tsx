@@ -6,6 +6,7 @@ import {
   Languages,
   Pause,
   Play,
+  RotateCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -75,7 +76,6 @@ function DrawerContent({
   voice,
   voices,
   loading,
-  engineName,
   setEngineName,
   activeEngine,
   engines,
@@ -135,30 +135,24 @@ function DrawerContent({
           <Field>
             <FieldLabel>TTS engine</FieldLabel>
             <Select
-              value={engineName}
+              value={activeEngine?.name ?? ""}
               onValueChange={(value) => value && setEngineName(value)}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select an engine" />
+                <SelectValue placeholder="No engine installed" />
               </SelectTrigger>
               <SelectContent>
-                {engines.map((engine) => (
-                  <SelectItem
-                    key={engine.name}
-                    value={engine.name}
-                    disabled={!engine.is_available}
-                  >
+                {engines.filter((engine) => engine.is_available).map((engine) => (
+                  <SelectItem key={engine.name} value={engine.name}>
                     {engine.name}
-                    {!engine.is_available ? (
-                      <span className="text-muted-foreground"> · {engine.unavailable_reason}</span>
-                    ) : !engine.commercial_permitted ? (
+                    {!engine.commercial_permitted ? (
                       <span className="text-status-warning"> · non-commercial</span>
                     ) : null}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground mt-1">{activeEngine?.license_name ?? "—"}</p>
+            <p className="text-xs text-muted-foreground mt-1">{activeEngine?.license_name ?? "Download a voice engine from the Models page."}</p>
           </Field>
 
           <Field>
@@ -180,10 +174,12 @@ function DrawerContent({
                 ))}
               </SelectContent>
             </Select>
-            <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-              <Languages className="size-3" />
-              {activeEngine?.supported_languages.length ?? 1} supported
-            </p>
+            {activeEngine ? (
+              <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                <Languages className="size-3" />
+                {activeEngine.supported_languages.length} supported
+              </p>
+            ) : null}
           </Field>
         </TabsContent>
 
@@ -570,6 +566,15 @@ export function StudioPage() {
                         <Download className="size-3.5" />
                         Export
                       </button>
+                      <button
+                type="button"
+                onClick={() => void synthesize()}
+                disabled={isRunning}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+              >
+                <RotateCw className="size-3.5" />
+                Retry
+              </button>
                     </div>
                   ) : null}
                 </div>

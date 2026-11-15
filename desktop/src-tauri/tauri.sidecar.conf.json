@@ -1,5 +1,6 @@
 {
   "bundle": {
-    "externalBin": ["binaries/voiceclone-api", "binaries/llama-server", "binaries/whisper-server", "binaries/ace-server"]
+    "resources": { "resources/voiceclone-api": "voiceclone-api" },
+    "externalBin": ["binaries/llama-server", "binaries/whisper-server", "binaries/ace-server"]
   }
 }

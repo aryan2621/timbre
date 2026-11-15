@@ -30,12 +30,13 @@ class AgentRepository:
         self, name: str, voice_id: int | None, system_prompt: str, icon: str,
         mcp_servers: list[dict[str, str]],
         llm_model: str,
+        llm_provider: str = "local",
     ) -> dict[str, Any]:
         with db_mod.db_manager.get_cursor() as cursor:
             cursor.execute(
-                "INSERT INTO agents (name, voice_id, system_prompt, icon, mcp_servers, llm_model, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (name, voice_id, system_prompt, icon, json.dumps(mcp_servers), llm_model, utc_now_iso()),
+                "INSERT INTO agents (name, voice_id, system_prompt, icon, mcp_servers, llm_model, llm_provider, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (name, voice_id, system_prompt, icon, json.dumps(mcp_servers), llm_model, llm_provider, utc_now_iso()),
             )
             agent_id = cursor.lastrowid
         created = self.get(agent_id)

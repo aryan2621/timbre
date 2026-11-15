@@ -44,8 +44,9 @@ def _noise_free_final_step(scheduler_class):
 class StableAudioEngine(SoundEngine):
     model_id = MODEL_ID
     max_duration_seconds = 47.0
+    kinds = ("sfx",)  # the Models page files it under Sound, so Studio's Music list matches it
     controls = (
-        ParamSpec("steps", "Steps", 1, 500, 5, 100, description="More steps refine the sound but take longer."),
+        ParamSpec("steps", "Steps", 1, 500, 5, 50, description="More steps refine the sound but take longer."),
         ParamSpec("guidance", "Prompt strength", 0, 30, 0.5, 7.0, description="How closely the sound follows your description."),
     )
 
@@ -88,7 +89,7 @@ class StableAudioEngine(SoundEngine):
 
     def get_default_params(self) -> SoundParameters:
         return SoundParameters(
-            duration_seconds=10.0, steps=100, guidance=7.0, negative_prompt="Low quality."
+            duration_seconds=10.0, steps=50, guidance=7.0, negative_prompt="Low quality."
         )
 
     def _weights_present(self) -> bool:

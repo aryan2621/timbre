@@ -12,7 +12,7 @@ Apple Silicon only. You install nothing else: Python, the model servers and the 
 
 ### What you need
 
-- **Nothing**, for Chatterbox, ACE-Step, MusicGen, AudioLDM and all the agent models.
+- **Nothing**, for Chatterbox, ACE-Step, MusicGen and all the agent models.
 - **A free Hugging Face account**, only for the gated models (Stable Audio Open and Pocket TTS). Accept the licence on the model page, create a read-only token, and paste it on the **Models** page. The token is kept in the system keychain and only sent to huggingface.co. The Models page has a step-by-step dialog.
 - **Microphone access**, only if you record a reference voice or talk to an agent.
 
@@ -31,13 +31,13 @@ Apple Silicon only. You install nothing else: Python, the model servers and the 
 | Category | Models | Account |
 | --- | --- | --- |
 | Voice cloning | Chatterbox (MIT, 23 languages), Pocket TTS (fast on CPU, English, CC BY 4.0) | Pocket TTS: Hugging Face |
-| Sound effects | Stable Audio Open (up to 47 s), AudioLDM (up to 30 s, non-commercial) | Stable Audio: Hugging Face |
+| Sound effects | Stable Audio Open (up to 47 s) | Stable Audio: Hugging Face |
 | Music | ACE-Step 1.5 (up to 10 min), MusicGen small (up to 40 s, non-commercial) | none |
 | Voice agents | Qwen3 1.7B, 4B and 8B, Gemma 3 4B, Llama 3.1 8B; Whisper base and large v3 turbo | none |
 
 Every setting a model supports is in the drawer: for example temperature, top-p, repetition penalty and speed for speech, steps, prompt strength and seed for sound, and tempo, key, time signature, vocal language, shift and solver for ACE-Step. Duration limits are set by what each model can do. Check each model's licence before commercial use.
 
-Licences vary: Chatterbox is MIT, ACE-Step is Apache-2.0, Stable Audio Open is free under USD 1M revenue, and AudioLDM and MusicGen are non-commercial. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+Licences vary: Chatterbox is MIT, ACE-Step is Apache-2.0, Stable Audio Open is free under USD 1M revenue, and MusicGen is non-commercial. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ## Releases
 
@@ -60,6 +60,7 @@ python3.12 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/pip install 'diffusers>=0.31' torchsde      # Chatterbox pins an older diffusers, ignore its warning
 .venv/bin/pip install --no-deps pocket-tts==4.0.1     # it asks for numpy 2 but runs on 1.26
+.venv/bin/pip install --no-deps f5-tts==1.1.22 && .venv/bin/pip install -r requirements-f5.txt
 
 cd desktop && pnpm install
 sh scripts/build-native-servers.sh                    # llama.cpp, whisper.cpp and acestep.cpp servers

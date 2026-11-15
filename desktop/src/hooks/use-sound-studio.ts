@@ -26,13 +26,30 @@ export function useSoundEngines(online: boolean, active = true) {
   useEffect(() => {
     if (!online || !active) return;
     let cancelled = false;
-    api
-      .listSoundEngines()
-      .then((next) => !cancelled && setEngines(next))
-      .catch(() => !cancelled && setEngines([]))
-      .finally(() => !cancelled && setLoading(false));
+    let retry: number | undefined;
+    // Refetch on every activation: downloads finish while this page is hidden.
+    const load = (attempt: number) => {
+      api
+        .listSoundEngines()
+        .then((next) => {
+          if (cancelled) return;
+          setEngines(next);
+          setLoading(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          // The engine may still be warming up: retry a few times, then show an empty list instead of loading forever.
+          if (attempt < 5) retry = window.setTimeout(() => load(attempt + 1), 2000);
+          else {
+            setEngines([]);
+            setLoading(false);
+          }
+        });
+    };
+    load(0);
     return () => {
       cancelled = true;
+      window.clearTimeout(retry);
     };
   }, [online, active]);
 

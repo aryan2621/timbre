@@ -29,7 +29,10 @@ class NativeUnavailable(RuntimeError):
 
 def find_native(name: str) -> Path | None:
     exe = f"{name}.exe" if os.name == "nt" else name
-    folders = [Path(sys.executable).parent, DEV_BINARIES]
+    from app.core.config import config_manager
+
+    # Engines installed from the Models page live in <models>/engines/<name>/.
+    folders = [Path(sys.executable).parent, config_manager.get_models_directory() / "engines" / name, DEV_BINARIES]
     if os.environ.get(NATIVE_DIR_ENV):
         folders.insert(0, Path(os.environ[NATIVE_DIR_ENV]))
     for folder in folders:

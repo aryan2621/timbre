@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+from dataclasses import dataclass
 from collections.abc import Callable
 
 import numpy as np
@@ -10,7 +11,21 @@ from app.core.device import device_manager
 from app.data.model_catalog import get_model, is_model_present
 from app.engines.base import EngineLicense, ParamSpec, SoundEngine, SoundParameters
 
-MODEL_ID = "musicgen-small"
+
+@dataclass(frozen=True)
+class MusicGenSpec:
+    model_id: str
+    name: str
+    local_dir: str
+    melody: bool = False  # the melody checkpoint has its own class; it is used here from text only
+
+
+SPECS = (
+    MusicGenSpec("musicgen-small", "MusicGen small", "musicgen-small"),
+    MusicGenSpec("musicgen-medium", "MusicGen medium", "musicgen-medium"),
+    MusicGenSpec("musicgen-large", "MusicGen large", "musicgen-large"),
+    MusicGenSpec("musicgen-melody", "MusicGen melody", "musicgen-melody", melody=True),
+)
 TOKENS_PER_SECOND = 50
 REQUIRED_PACKAGES = ("transformers", "torch")
 
@@ -31,7 +46,6 @@ class _Progress:
 
 
 class MusicGenEngine(SoundEngine):
-    model_id = MODEL_ID
     max_duration_seconds = 40.0
     kinds = ("music",)
     supports_negative_prompt = False
@@ -42,20 +56,22 @@ class MusicGenEngine(SoundEngine):
         ParamSpec("top_p", "Top-p", 0, 1, 0.01, 0, description="Nucleus sampling. 0 turns it off."),
     )
 
-    def __init__(self) -> None:
+    def __init__(self, spec: MusicGenSpec = SPECS[0]) -> None:
+        self._spec = spec
+        self.model_id = spec.model_id
         self._model = None
         self._processor = None
         self._device = "cpu"
 
     @property
     def name(self) -> str:
-        return "MusicGen small"
+        return self._spec.name
 
     @property
     def license_info(self) -> EngineLicense:
         return EngineLicense(
             name="CC BY-NC 4.0",
-            url="https://huggingface.co/facebook/musicgen-small",
+            url=f"https://huggingface.co/facebook/{self._spec.local_dir}",
             commercial_permitted=False,
             notice="Non-commercial use only.",
         )
@@ -73,7 +89,7 @@ class MusicGenEngine(SoundEngine):
         if missing:
             return f"Missing Python packages: {', '.join(missing)}"
         if not self._weights_present():
-            return "Download MusicGen small from the Models page first"
+            return f"Download {self._spec.name} from the Models page first"
         return None
 
     def is_available(self) -> bool:
@@ -86,22 +102,23 @@ class MusicGenEngine(SoundEngine):
         return SoundParameters(duration_seconds=10.0, steps=1, guidance=3.0)
 
     def _weights_present(self) -> bool:
-        model = get_model(MODEL_ID)
+        model = get_model(self.model_id)
         return model is not None and is_model_present(model, config_manager.get_models_directory())
 
     def load_model(self, progress_callback: Callable[[float, str], None] | None = None) -> bool:
         if self._model is not None:
             return True
         if not self._weights_present():
-            raise RuntimeError("Download MusicGen small from the Models page first.")
-        from transformers import AutoProcessor, MusicgenForConditionalGeneration
+            raise RuntimeError(f"Download {self._spec.name} from the Models page first.")
+        from transformers import AutoProcessor, MusicgenForConditionalGeneration, MusicgenMelodyForConditionalGeneration
 
+        model_class = MusicgenMelodyForConditionalGeneration if self._spec.melody else MusicgenForConditionalGeneration
         self._device = "cpu"
         if progress_callback:
             progress_callback(30.0, f"Loading MusicGen on {self._device.upper()}")
-        path = str(config_manager.get_models_directory() / "musicgen-small")
+        path = str(config_manager.get_models_directory() / self._spec.local_dir)
         self._processor = AutoProcessor.from_pretrained(path)
-        self._model = MusicgenForConditionalGeneration.from_pretrained(path).to(self._device)
+        self._model = model_class.from_pretrained(path).to(self._device)
         return True
 
     def unload_model(self) -> None:

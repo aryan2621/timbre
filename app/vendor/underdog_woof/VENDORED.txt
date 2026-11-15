@@ -1,0 +1,1 @@
+Vendored unchanged from https://huggingface.co/ConwayResearch/Underdog-Woof at revision be702960539777fc3f698e54335276a8391b00f9 (Underdog Non-Commercial License 1.0, see LICENSE).

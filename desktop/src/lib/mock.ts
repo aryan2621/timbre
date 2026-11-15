@@ -160,5 +160,6 @@ export const mockSettings: AppSettings = {
   device_preference: "auto",
   clear_device_cache_after_job: false,
   max_chars_per_chunk: 200,
+  ollama_url: "http://localhost:11434",
   log_level: "INFO",
 };

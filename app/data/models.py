@@ -114,3 +114,5 @@ class ModelMetadata:
     category: str = "voice-cloning"
     min_memory_gb: float = 4.0
     gpu_recommended: bool = False
+    requires_engine: str = ""  # id of the engine download this model also needs
+    executable: bool = False  # engine servers: marked runnable once downloaded

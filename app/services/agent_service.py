@@ -11,6 +11,7 @@ import soundfile as sf
 from app.core.config import config_manager
 from app.data.model_catalog import get_model, is_model_present, model_local_path
 from app.runtimes.native import NativeServer
+from app.services import llm_providers
 from app.services.mcp_client import McpError, McpSession
 
 WHISPER_RATE = 16000
@@ -124,27 +125,35 @@ def _run_tool(routes: dict[str, tuple[McpSession, str]], call: dict) -> str:
         return f"Tool error: {exc}"
 
 
+def _complete(provider: str, model: str, conversation: list[dict], specs: list[dict]) -> dict:
+    if provider != llm_providers.LOCAL:
+        return llm_providers.chat(provider, model, conversation, specs, MAX_REPLY_TOKENS)
+    body: dict = {
+        "messages": conversation,
+        "temperature": 0.7,
+        "max_tokens": MAX_REPLY_TOKENS,
+        "chat_template_kwargs": {"enable_thinking": False},  # llama.cpp only; other servers reject it
+    }
+    if specs:
+        body["tools"] = specs
+    return llm_server.request("/v1/chat/completions", body)["choices"][0]["message"]
+
+
 def reply(
     system_prompt: str,
     messages: Sequence[dict[str, str]],
     servers: Sequence[dict[str, str]] = (),
     llm_model: str = DEFAULT_LLM,
+    llm_provider: str = llm_providers.LOCAL,
 ) -> str:
-    _llm_url(llm_model)
+    if llm_provider == llm_providers.LOCAL:
+        _llm_url(llm_model)
     specs, routes = _open_tools(servers)
     conversation: list[dict] = [{"role": "system", "content": f"{system_prompt}\n\n{SPOKEN_STYLE}"}, *messages]
     for round_number in range(MAX_TOOL_ROUNDS + 1):
         if round_number == MAX_TOOL_ROUNDS:
             specs = []
-        body: dict = {
-            "messages": conversation,
-            "temperature": 0.7,
-            "max_tokens": MAX_REPLY_TOKENS,
-            "chat_template_kwargs": {"enable_thinking": False},
-        }
-        if specs:
-            body["tools"] = specs
-        message = llm_server.request("/v1/chat/completions", body)["choices"][0]["message"]
+        message = _complete(llm_provider, llm_model, conversation, specs)
         calls = message.get("tool_calls") or []
         if not calls or not specs:
             return str(message.get("content") or "").strip()

@@ -201,6 +201,7 @@ def model_to_dict(model: ModelMetadata, models_dir: Path, specs: SystemSpecs) ->
         "requires_token": bool(model.gated_url),
         "gated_url": model.gated_url,
         "min_memory_gb": model.min_memory_gb,
+        "requires_engine": model.requires_engine,
         "fit": assess_fit(model, specs, installed).to_dict(),
         "unavailable_reason": next(
             (

@@ -145,16 +145,17 @@ export function useEngineSelection(engines: EngineInfo[]): EngineSelection {
   const [engineName, setEngineName] = useState("Chatterbox TTS");
   const [params, setParams] = useState<SynthesisParams>(mockEngines[0].default_params);
 
-  const activeEngine = useMemo(
-    () => engines.find((engine) => engine.name === engineName) ?? engines[0],
-    [engineName, engines],
-  );
+  // Only an installed engine can be active; undefined means none is installed yet.
+  const activeEngine = useMemo(() => {
+    const available = engines.filter((engine) => engine.is_available);
+    return available.find((engine) => engine.name === engineName) ?? available[0];
+  }, [engineName, engines]);
 
   useEffect(() => {
     if (!engines.length) return;
     const current = engines.find((engine) => engine.name === engineName);
     if (!current?.is_available) {
-      const preferred = engines.find((engine) => engine.is_available) ?? engines[0];
+      const preferred = engines.find((engine) => engine.is_available);
       if (preferred && preferred.name !== engineName) setEngineName(preferred.name);
     }
   }, [engines, engineName]);
@@ -403,6 +404,10 @@ export function useSynthesisJob(options: SynthesisJobOptions): SynthesisJob {
     }
     if (!text.trim()) {
       toast.error("Write something to synthesize");
+      return;
+    }
+    if (online && !engines.some((engine) => engine.is_available)) {
+      toast.error("No voice engine installed", { description: "Download one from the Models page." });
       return;
     }
     const selected = engines.find((engine) => engine.name === engineName);

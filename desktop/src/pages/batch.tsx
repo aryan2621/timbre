@@ -179,7 +179,7 @@ export function BatchPage() {
                 Cancel
               </Button>
             ) : (
-              <Button onClick={() => void start(lines, outputDir)} disabled={!lines.length || starting}>
+              <Button onClick={() => void start(lines, outputDir)} disabled={!lines.length || starting || !activeEngine}>
                 {starting ? <SoundBars className="h-3.5 text-current" /> : <Play />}
                 Start batch
               </Button>
@@ -209,30 +209,23 @@ export function BatchPage() {
           <Field className="gap-1">
             <FieldLabel className="text-xs text-muted-foreground">Engine</FieldLabel>
             <Select
-              value={engineName}
+              value={activeEngine?.name ?? ""}
               onValueChange={(value) => value && setEngineName(value)}
               disabled={running}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select an engine" />
+                <SelectValue placeholder="No engine installed" />
               </SelectTrigger>
               <SelectContent>
-                {engines.map((engine) => (
-                  <SelectItem
-                    key={engine.name}
-                    value={engine.name}
-                    disabled={!engine.is_available}
-                  >
+                {engines.filter((engine) => engine.is_available).map((engine) => (
+                  <SelectItem key={engine.name} value={engine.name}>
                     {engine.name}
-                    {!engine.is_available ? (
-                      <span className="text-muted-foreground"> · {engine.unavailable_reason}</span>
-                    ) : null}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <FieldDescription className="text-[11.5px]">
-              {activeEngine?.license_name ?? "—"}
+              {activeEngine?.license_name ?? "Download a voice engine from the Models page."}
             </FieldDescription>
           </Field>
 

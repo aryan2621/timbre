@@ -8,6 +8,7 @@ thread with a pollable state object so the React frontend can show progress.
 from __future__ import annotations
 
 import hashlib
+import os
 import threading
 import time
 import urllib.error
@@ -157,6 +158,9 @@ class DownloadManager:
                     return None  # cancelled or failed: state already set
                 done_bytes += file.size
 
+            if model.executable:
+                for file in model.files:
+                    os.chmod(destination_dir / file.name, 0o755)
             job.state = "done"
             job.progress = 100.0
             job.speed_mb_s = 0.0

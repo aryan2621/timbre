@@ -1,0 +1,27 @@
+{
+  "base_url": "https://huggingface.co/aryan2621/timbre-engines/resolve/main",
+  "engines": [
+    {
+      "id": "engine-mlx-audio",
+      "name": "Voice engine (Apple Silicon)",
+      "binary": "mlx-audio-server",
+      "triple": "aarch64-apple-darwin",
+      "version": "b5fcbe964b9e4cad4b06782f97d3e51fe74a8702+42f8ce2f",
+      "size": 377506848,
+      "sha256": "2fa53e952eca26edcad1f957366c0d930e779fc9df8dc31a065006d6175cf656",
+      "notice": "Runs Kokoro, ZONOS3 Mini and Qwen3-TTS on the Apple GPU. Install it before downloading those voices.",
+      "min_memory_gb": 4.0
+    },
+    {
+      "id": "engine-sfx",
+      "name": "Sound effects engine",
+      "binary": "sfx-server",
+      "triple": "aarch64-apple-darwin",
+      "version": "0.0.20+d9e85b03",
+      "size": 171224416,
+      "sha256": "f6e2cec703aba9317951c266eace0852519cda4315194369255231c810387ad5",
+      "notice": "Runs Stable Audio Open Small. Install it before downloading that model.",
+      "min_memory_gb": 6.0
+    }
+  ]
+}

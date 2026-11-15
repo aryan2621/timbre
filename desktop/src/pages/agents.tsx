@@ -1,5 +1,5 @@
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bot, Mic, Plug, Plus, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import { api } from "@/lib/api";
 import { AGENT_ICONS } from "@/lib/agent-icons";
 import { useEngineStatus } from "@/lib/engine-status";
 import { PAGE_DESCRIPTIONS, PAGE_TITLES } from "@/lib/pages";
+import { PROVIDER_LABELS, type LlmProvider } from "@/lib/llm-providers";
 import type { AgentProfile, McpServerDraft, ModelInfo, SynthesisParams } from "@/lib/types";
 
 const DEFAULT_PROMPT = "You are a friendly, concise voice assistant.";
@@ -132,6 +133,9 @@ export function AgentsPage() {
   const [icon, setIcon] = useState("bot");
   const [llmModels, setLlmModels] = useState<ModelInfo[]>([]);
   const [llmModel, setLlmModel] = useState("agent-llm");
+  const [llmProvider, setLlmProvider] = useState<LlmProvider>("local");
+  const [remoteModels, setRemoteModels] = useState<string[]>([]);
+  const [remoteError, setRemoteError] = useState("");
   const [servers, setServers] = useState<McpServerDraft[]>([]);
   const [draft, setDraft] = useState<McpServerDraft>({ name: "", url: "", token: "" });
   const [checking, setChecking] = useState(false);
@@ -153,9 +157,34 @@ export function AgentsPage() {
     api.listAgents().then(setAgents).catch(() => setAgents([])).finally(() => setLoaded(true));
   }, [online]);
 
+  const providerRequest = useRef(0);
+  const chooseProvider = (provider: LlmProvider) => {
+    providerRequest.current++;
+    setLlmProvider(provider);
+    setRemoteModels([]);
+    setRemoteError("");
+    if (provider === "local") {
+      setLlmModel(llmModels[0]?.id ?? "agent-llm");
+      return;
+    }
+    setLlmModel("");
+    const request = ++providerRequest.current;
+    api
+      .listLlmModels(provider)
+      .then((models) => {
+        if (request !== providerRequest.current) return; // the user switched provider meanwhile
+        setRemoteModels(models);
+        setLlmModel(models[0] ?? "");
+        if (models.length === 0) setRemoteError("This provider returned no models.");
+      })
+      .catch((error) => {
+        if (request === providerRequest.current) setRemoteError(describeError(error));
+      });
+  };
+
   const create = async () => {
     try {
-      const created = await api.createAgent({ name: name.trim(), voice_id: voiceId, system_prompt: prompt.trim(), icon, llm_model: llmModel, mcp_servers: servers });
+      const created = await api.createAgent({ name: name.trim(), voice_id: voiceId, system_prompt: prompt.trim(), icon, llm_provider: llmProvider, llm_model: llmModel, mcp_servers: servers });
       setAgents((previous) => [created, ...previous]);
       setSelectedId(created.id);
       setName("");
@@ -304,7 +333,40 @@ export function AgentsPage() {
                 </SelectContent>
               </Select>
             </Field>
-            {llmModels.length > 1 ? (
+            <Field>
+              <FieldLabel htmlFor="agent-provider">Language model provider</FieldLabel>
+              <Select value={llmProvider} onValueChange={(value) => value && chooseProvider(value as LlmProvider)}>
+                <SelectTrigger id="agent-provider" className="w-full">
+                  <SelectValue>{(value) => PROVIDER_LABELS[value as LlmProvider]}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(PROVIDER_LABELS) as LlmProvider[]).map((provider) => (
+                    <SelectItem key={provider} value={provider}>
+                      {PROVIDER_LABELS[provider]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {llmProvider !== "local" ? (
+              <Field>
+                <FieldLabel htmlFor="agent-remote-model">Model</FieldLabel>
+                <Select value={llmModel} onValueChange={(value) => value && setLlmModel(value)}>
+                  <SelectTrigger id="agent-remote-model" className="w-full">
+                    <SelectValue>{(value) => value || "Choose a model"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {remoteModels.map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {remoteError ? <p className="text-xs text-destructive">{remoteError}</p> : null}
+              </Field>
+            ) : null}
+            {llmProvider === "local" && llmModels.length > 1 ? (
               <Field>
                 <FieldLabel htmlFor="agent-llm">Language model</FieldLabel>
                 <Select value={llmModel} onValueChange={(value) => value && setLlmModel(value)}>
@@ -383,7 +445,7 @@ export function AgentsPage() {
             <Button variant="outline" onClick={() => setCreating(false)}>
               Cancel
             </Button>
-            <Button onClick={create} disabled={!name.trim() || !prompt.trim()}>
+            <Button onClick={create} disabled={!name.trim() || !prompt.trim() || !llmModel}>
               Create agent
             </Button>
           </DialogFooter>

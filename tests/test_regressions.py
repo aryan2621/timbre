@@ -50,5 +50,14 @@ class TestProfileAtomicity(unittest.TestCase):
                 db_mod.db_manager = original
 
 
+class ImportTests(unittest.TestCase):
+    def test_importing_the_api_does_not_import_torch(self):
+        import subprocess
+        import sys
+
+        code = "import app.api.server, sys; sys.exit(1 if 'torch' in sys.modules else 0)"
+        self.assertEqual(subprocess.run([sys.executable, "-c", code]).returncode, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

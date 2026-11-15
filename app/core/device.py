@@ -6,6 +6,7 @@ Provides VRAM queries, torch memory cache clearing, and OOM diagnostic messaging
 from __future__ import annotations
 
 import platform
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,18 +29,33 @@ class DeviceManager:
     """Detects available hardware acceleration and configures PyTorch devices."""
 
     def __init__(self) -> None:
-        self._torch_available: bool = False
-        self._torch: Any = None
-        self._check_torch()
+        self._module: Any = None
+        self._probed = False
+        self._probe_lock = threading.Lock()
 
-    def _check_torch(self) -> None:
-        try:
-            import torch  # type: ignore
-            self._torch = torch
-            self._torch_available = True
-        except ImportError:
-            self._torch_available = False
-            logger.warning("PyTorch is not installed in the current environment. Defaulting to CPU mock.")
+    @property
+    def _torch(self) -> Any:
+        """torch, imported on first use so the API can start listening before the multi-second import."""
+        if not self._probed:
+            with self._probe_lock:  # a second caller waits for the import instead of seeing None
+                if not self._probed:
+                    try:
+                        import torch  # type: ignore
+
+                        self._module = torch
+                    except ImportError:
+                        logger.warning("PyTorch is not installed in the current environment. Defaulting to CPU mock.")
+                    self._probed = True
+        return self._module
+
+    @property
+    def probed(self) -> bool:
+        """True once torch has been imported (or found missing); health uses it to avoid forcing the import."""
+        return self._probed
+
+    @property
+    def _torch_available(self) -> bool:
+        return self._torch is not None
 
     def get_preferred_device(self, preference: str = "auto") -> str:
         """

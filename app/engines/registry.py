@@ -24,10 +24,17 @@ class EngineRegistry:
         """Instantiates and registers standard engines."""
         from app.engines.chatterbox_engine import ChatterboxEngine
 
+        from app.engines.f5_tts_engine import F5TTSEngine
+        from app.engines.mlx_audio_engine import SPECS, MlxAudioEngine
         from app.engines.pocket_tts_engine import PocketTTSEngine
+        from app.engines.woof_engine import WoofEngine
 
         self.register(ChatterboxEngine())
         self.register(PocketTTSEngine())
+        self.register(WoofEngine())
+        self.register(F5TTSEngine())
+        for spec in SPECS:
+            self.register(MlxAudioEngine(spec))
 
     def register(self, engine: Engine) -> None:
         """Registers a new TTS engine instance."""
@@ -73,14 +80,16 @@ class EngineRegistry:
 class SoundEngineRegistry(EngineRegistry):
     def _register_default_engines(self) -> None:
         from app.engines.ace_step_engine import AceStepEngine
-        from app.engines.audioldm_engine import AudioLdmEngine
+        from app.engines.musicgen_engine import SPECS as MUSICGEN_SPECS
         from app.engines.musicgen_engine import MusicGenEngine
         from app.engines.stable_audio_engine import StableAudioEngine
+        from app.engines.stable_audio_small_engine import StableAudioSmallEngine
 
         self.register(StableAudioEngine())
+        self.register(StableAudioSmallEngine())
         self.register(AceStepEngine())
-        self.register(AudioLdmEngine())
-        self.register(MusicGenEngine())
+        for spec in MUSICGEN_SPECS:
+            self.register(MusicGenEngine(spec))
 
     def get_engine(self, name: str) -> SoundEngine | None:
         engine = super().get_engine(name)

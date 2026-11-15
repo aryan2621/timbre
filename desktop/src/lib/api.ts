@@ -8,6 +8,7 @@
  * IPC flow: Frontend -> this module -> Tauri invoke -> Rust command -> Python (HTTP / stdlib)
  */
 
+import type { LlmProvider } from "@/lib/llm-providers";
 import type { VoiceProfile } from "@/lib/types";
 import type { EngineInfo } from "@/lib/types";
 import type { HistoryEntry } from "@/lib/types";
@@ -222,6 +223,10 @@ async function removeHuggingFaceToken(): Promise<HuggingFaceStatus> {
   return request<HuggingFaceStatus>("/api/credentials/hugging-face", { method: "DELETE" });
 }
 
+async function listLlmModels(provider: Exclude<LlmProvider, "local">): Promise<string[]> {
+  return (await request<{ models: string[] }>(`/api/llm/models?provider=${provider}`)).models;
+}
+
 /** Settings */
 async function getSettings(): Promise<AppSettings> {
   return request<AppSettings>("/api/settings");
@@ -275,6 +280,7 @@ async function createAgent(payload: {
   voice_id: number | null;
   system_prompt: string;
   icon: string;
+  llm_provider: LlmProvider;
   llm_model: string;
   mcp_servers: McpServerDraft[];
 }): Promise<AgentProfile> {
@@ -388,6 +394,7 @@ export const api = {
   cancelDownload,
   getSystemSpecs,
   getHuggingFaceStatus,
+  listLlmModels,
   saveHuggingFaceToken,
   removeHuggingFaceToken,
   getSettings,

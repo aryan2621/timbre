@@ -77,6 +77,7 @@ MIGRATIONS = [
     ("history", "kind", "TEXT NOT NULL DEFAULT 'speech'"),
     ("agents", "icon", "TEXT NOT NULL DEFAULT 'bot'"),
     ("agents", "llm_model", "TEXT NOT NULL DEFAULT 'agent-llm'"),
+    ("agents", "llm_provider", "TEXT NOT NULL DEFAULT 'local'"),
     ("agents", "mcp_servers", "TEXT NOT NULL DEFAULT '[]'"),
 ]
 

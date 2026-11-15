@@ -138,7 +138,7 @@ export interface HistoryEntry {
   kind: "speech" | "sfx" | "music";
 }
 
-export type ModelCategory = "voice-cloning" | "sound" | "music" | "voice-agent";
+export type ModelCategory = "voice-cloning" | "sound" | "music" | "voice-agent" | "engine";
 
 export type FitStatus = "recommended" | "possible" | "blocked";
 
@@ -174,6 +174,8 @@ export interface ModelInfo {
   requires_token: boolean;
   gated_url: string;
   min_memory_gb: number;
+  /** Id of an engine download this model also needs, or "". */
+  requires_engine?: string;
   fit: { status: FitStatus; reasons: string[] };
   /** Why the matching engine can't run on this machine, or null. */
   unavailable_reason?: string | null;
@@ -201,6 +203,7 @@ export interface AppSettings {
   device_preference: string;
   clear_device_cache_after_job: boolean;
   max_chars_per_chunk: number;
+  ollama_url: string;
   log_level: string;
 }
 
@@ -242,6 +245,7 @@ export interface AgentProfile {
   voice_id: number | null;
   system_prompt: string;
   icon: string;
+  llm_provider: string;
   llm_model: string;
   mcp_servers: McpServerInfo[];
   created_at: string;

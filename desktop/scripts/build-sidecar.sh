@@ -1,21 +1,24 @@
 #!/usr/bin/env sh
-# Freezes the Python API into one executable and places it where Tauri's
-# `externalBin` expects it: src-tauri/binaries/voiceclone-api-<target-triple>.
+# Freezes the Python API into a folder (onedir) at src-tauri/resources/voiceclone-api/, which Tauri ships
+# as a resource. Onedir starts in about a second instead of unpacking hundreds of MB to a temp dir on
+# every launch the way --onefile does.
 # macOS / Linux only. Needs the repo venv (`pip install -e '.[dev]'`).
 set -eu
 
 DESKTOP="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT="$(cd "$DESKTOP/.." && pwd)"
-TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
 
 cd "$ROOT"
-.venv/bin/python -m PyInstaller --noconfirm --clean --onefile \
+.venv/bin/python -m PyInstaller --noconfirm --clean --onedir \
   --name voiceclone-api \
   --paths "$ROOT" \
   --distpath "$ROOT/build/sidecar" --workpath "$ROOT/build/pyinstaller" --specpath "$ROOT/build" \
   --collect-submodules app \
+  --add-data "$ROOT/app/vendor/underdog_woof/respell.tsv:app/vendor/underdog_woof" \
+  --add-data "$ROOT/app/data/engines.json:app/data" \
   --collect-all soundfile --collect-all librosa \
   --collect-all pocket_tts --copy-metadata pocket-tts \
+  --collect-all f5_tts --collect-all vocos --collect-all x_transformers --collect-all ema_pytorch --copy-metadata f5-tts \
   --collect-submodules diffusers --copy-metadata diffusers \
   --collect-all torchsde --copy-metadata torchsde \
   --collect-submodules transformers \
@@ -30,6 +33,8 @@ cd "$ROOT"
   --hidden-import uvicorn.protocols.http.auto --hidden-import uvicorn.lifespan.on \
   app/api/server.py
 
-mkdir -p "$DESKTOP/src-tauri/binaries"
-cp "$ROOT/build/sidecar/voiceclone-api" "$DESKTOP/src-tauri/binaries/voiceclone-api-$TRIPLE"
-echo "Sidecar ready: src-tauri/binaries/voiceclone-api-$TRIPLE"
+RES="$DESKTOP/src-tauri/resources/voiceclone-api"
+rm -rf "$RES"
+mkdir -p "$DESKTOP/src-tauri/resources"
+cp -R "$ROOT/build/sidecar/voiceclone-api" "$RES"
+echo "Sidecar ready: src-tauri/resources/voiceclone-api/"

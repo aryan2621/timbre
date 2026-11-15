@@ -67,3 +67,4 @@ yarn-error.log*
 
 # Frozen API sidecar (built by desktop/scripts/build-sidecar.sh)
 desktop/src-tauri/binaries/
+desktop/src-tauri/resources/

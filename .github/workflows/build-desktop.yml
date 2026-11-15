@@ -38,6 +38,8 @@ jobs:
           .venv/bin/pip install -e '.[dev]'
           .venv/bin/pip install 'diffusers>=0.31' torchsde
           .venv/bin/pip install --no-deps pocket-tts==4.0.1
+          .venv/bin/pip install --no-deps f5-tts==1.1.22
+          .venv/bin/pip install -r requirements-f5.txt
 
       - name: Python tests
         run: .venv/bin/pytest -q
@@ -72,6 +74,21 @@ jobs:
       - name: Native model servers (llama.cpp, whisper.cpp, acestep.cpp)
         working-directory: desktop
         run: sh scripts/build-native-servers.sh
+
+      - name: MLX voice server (mlx-audio, Apple Silicon)
+        working-directory: desktop
+        run: sh scripts/build-mlx-server.sh
+
+      - uses: actions/setup-python@v5
+        id: py310
+        with:
+          python-version: "3.10"
+
+      - name: Sound effects server (Stable Audio Open Small, Python 3.10)
+        working-directory: desktop
+        env:
+          SFX_PYTHON: ${{ steps.py310.outputs.python-path }}
+        run: sh scripts/build-sfx-server.sh
 
       - name: Build app with the bundled Python sidecar
         working-directory: desktop

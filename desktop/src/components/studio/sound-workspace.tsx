@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Download, Pause, Play } from "lucide-react";
+import { Download, Pause, Play, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -57,7 +57,7 @@ export function useSoundWorkspace(kind: SoundKind, online: boolean, active: bool
   const waveformRef = useRef<WaveformPlayerHandle>(null);
   const { job, starting, isRunning, audioUrl, generate, cancel } = useSoundJob();
 
-  const candidates = engines.filter((item) => item.kinds.includes(kind));
+  const candidates = engines.filter((item) => item.is_available && item.kinds.includes(kind));
   const engine =
     candidates.find((item) => item.name === engineName) ??
     candidates.find((item) => item.is_available) ??
@@ -87,7 +87,9 @@ export function useSoundWorkspace(kind: SoundKind, online: boolean, active: bool
 
   const blocker = !online
     ? "The engine is not running."
-    : !engine && !loading
+    : loading
+      ? null
+      : !engine
       ? "No sound engine is installed."
       : engine?.unavailable_reason
         ? engine.unavailable_reason
@@ -102,7 +104,7 @@ export type SoundWorkspace = ReturnType<typeof useSoundWorkspace>;
 
 export function SoundResult({ workspace }: { workspace: SoundWorkspace }) {
   const { navigate } = useApp();
-  const { online, engine, blocker, playing, setPlaying, waveformRef, job, starting, isRunning, audioUrl, cancel, kind } = workspace;
+  const { canGenerate, submit, online, engine, blocker, playing, setPlaying, waveformRef, job, starting, isRunning, audioUrl, cancel, kind } = workspace;
   return (
     <div className="space-y-4">
       {blocker ? (
@@ -123,7 +125,10 @@ export function SoundResult({ workspace }: { workspace: SoundWorkspace }) {
 
           {job?.state === "failed" ? (
             <p role="alert" className="text-sm text-destructive">
-              {job.error ?? "Generation failed."}
+              {job.error ?? "Generation failed."}{" "}
+              <button type="button" onClick={submit} disabled={!canGenerate} className="underline">
+                Retry
+              </button>
             </p>
           ) : null}
 
@@ -152,14 +157,25 @@ export function SoundResult({ workspace }: { workspace: SoundWorkspace }) {
                   {formatTimecode(job?.duration_seconds ?? 0)}
                 </code>
               </div>
-              <button
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => void exportAudio(audioUrl, kind)}
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Download className="size-3.5" />
+                  Export
+                </button>
+                <button
                 type="button"
-                onClick={() => void exportAudio(audioUrl, kind)}
-                className="inline-flex items-center gap-1.5 self-start text-xs text-muted-foreground transition-colors hover:text-foreground"
+                onClick={submit}
+                disabled={!canGenerate}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
               >
-                <Download className="size-3.5" />
-                Export
+                <RotateCw className="size-3.5" />
+                Retry
               </button>
+              </div>
             </>
           ) : null}
         </section>

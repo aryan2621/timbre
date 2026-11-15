@@ -34,6 +34,9 @@ class AppConfig:
     # faster (and start playing sooner) at the cost of slightly more joins.
     max_chars_per_chunk: int = 200
 
+    # Language-model servers for agents (API keys live in the secret vault, never here)
+    ollama_url: str = "http://localhost:11434"
+
     # Logging
     log_level: str = "INFO"
 

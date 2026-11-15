@@ -268,9 +268,9 @@ class TestReferenceUpload(unittest.TestCase):
 class TestModelCatalogEngines(unittest.TestCase):
     def test_every_engine_weight_is_in_the_catalog_and_listed(self):
         from app.data.model_catalog import get_model
-        from app.engines.registry import engine_registry
+        from app.engines.registry import engine_registry, sound_registry
 
-        for engine in engine_registry.get_all_engines():
+        for engine in (*engine_registry.get_all_engines(), *sound_registry.get_all_engines()):
             self.assertIsNotNone(get_model(engine.model_id), engine.name)
         models = {m["id"]: m for m in TestClient(server_mod.app).get("/api/models").json()}
         self.assertIn("unavailable_reason", models["chatterbox-tts"])

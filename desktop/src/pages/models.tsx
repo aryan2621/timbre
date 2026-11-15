@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { PAGE_DESCRIPTIONS, PAGE_TITLES } from "@/lib/pages";
 import { PageHeader } from "@/components/ui/page-header";
 import { SoundBars } from "@/components/ui/sound-bars";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
@@ -40,6 +42,7 @@ const CATEGORY_LABELS: Record<ModelCategory, string> = {
   sound: "Sound effects",
   music: "Music",
   "voice-agent": "Voice agents",
+  engine: "Engines",
 };
 const CATEGORY_ORDER = Object.keys(CATEGORY_LABELS) as ModelCategory[];
 
@@ -55,6 +58,7 @@ export function ModelsPage() {
   const [loading, setLoading] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<ModelInfo | null>(null);
   const [tab, setTab] = useState<ModelCategory>("voice-cloning");
+  const [chosen, setChosen] = useState<Partial<Record<ModelCategory, string>>>({});
   const notified = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -153,6 +157,12 @@ export function ModelsPage() {
     };
   }, [activeKey, online]);
 
+  /** The engine download this model still needs, if any. */
+  const needsEngine = (model: ModelInfo) => {
+    const engine = models.find((item) => item.id === model.requires_engine);
+    return engine && !engine.is_downloaded ? engine : undefined;
+  };
+
   const startDownload = async (model: ModelInfo) => {
     if (!online) {
       toast.error("Downloading needs the Python engine", {
@@ -162,8 +172,13 @@ export function ModelsPage() {
     }
     if (model.requires_token && !hfStatus?.configured) return;
     try {
-      const job = await api.startModelDownload(model.id);
-      setDownloads((previous) => ({ ...previous, [model.id]: job }));
+      const engine = needsEngine(model);
+      const items = [model, ...(engine ? [engine] : [])];
+      const results = await Promise.allSettled(items.map((item) => api.startModelDownload(item.id)));
+      const started = results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+      setDownloads((previous) => ({ ...previous, ...Object.fromEntries(started.map((job) => [job.model_id, job])) }));
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed) throw failed.reason;
     } catch (error) {
       toast.error("Could not start the download", {
         description: error instanceof Error ? error.message : String(error),
@@ -204,13 +219,16 @@ export function ModelsPage() {
   const visibleModels = models.filter(
     (model) => model.fit.status !== "blocked" || model.is_downloaded,
   );
-  const hiddenModels = models.filter((model) => !visibleModels.includes(model));
   const sections = CATEGORY_ORDER.map((category) => ({
     category,
     items: visibleModels.filter((model) => model.category === category),
   })).filter((section) => section.items.length > 0);
   const activeTab = sections.some((section) => section.category === tab) ? tab : (sections[0]?.category ?? tab);
   const activeItems = sections.find((section) => section.category === activeTab)?.items ?? [];
+  const selectedModel =
+    activeItems.find((model) => model.id === chosen[activeTab]) ??
+    activeItems.find((model) => model.is_downloaded) ??
+    activeItems[0];
   const installedCount = models.filter((model) => model.is_downloaded).length;
   const hasGated = models.some((model) => model.requires_token);
 
@@ -262,8 +280,29 @@ export function ModelsPage() {
               ))}
             </TabsList>
           </Tabs>
+          {activeItems.length > 1 ? (
+            <Field className="max-w-sm">
+              <FieldLabel htmlFor="model-select">Model</FieldLabel>
+              <Select
+                value={selectedModel?.id ?? ""}
+                onValueChange={(value) => value && setChosen((previous) => ({ ...previous, [activeTab]: value }))}
+              >
+                <SelectTrigger id="model-select" className="w-full">
+                  <SelectValue>{(value) => activeItems.find((model) => model.id === value)?.name ?? ""}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {activeItems.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name}
+                      {model.is_downloaded ? " · installed" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          ) : null}
           <ul className="flex flex-col gap-2">
-            {activeItems.map((model) => {
+            {(selectedModel ? [selectedModel] : []).map((model) => {
               const job = downloads[model.id];
               const active = job ? ACTIVE_STATES.has(job.state) : false;
               const failed = job?.state === "failed";
@@ -272,6 +311,7 @@ export function ModelsPage() {
               const warnings = [
                 ...(model.fit.status === "possible" ? model.fit.reasons : []),
                 ...(model.unavailable_reason && !model.is_downloaded ? [] : model.unavailable_reason ? [model.unavailable_reason] : []),
+                ...(needsEngine(model) ? [`Also installs ${needsEngine(model)?.name} (${formatBytes(needsEngine(model)?.total_bytes ?? 0)}).`] : []),
                 ...(failed ? [job?.error ?? job?.message ?? "Download failed"] : []),
               ];
 
@@ -330,23 +370,6 @@ export function ModelsPage() {
               );
             })}
           </ul>
-
-          {hiddenModels.length > 0 ? (
-            <details className="text-sm">
-              <summary className="cursor-pointer text-muted-foreground">
-                {hiddenModels.length} model{hiddenModels.length > 1 ? "s" : ""} not available on
-                this machine
-              </summary>
-              <ul className="mt-2 space-y-1 text-muted-foreground">
-                {hiddenModels.map((model) => (
-                  <li key={model.id}>
-                    <span className="font-medium text-foreground">{model.name}</span>{" "}
-                    {model.fit.reasons.join(" ")}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
         </div>
       )}
 

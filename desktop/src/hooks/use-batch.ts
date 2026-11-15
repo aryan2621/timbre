@@ -92,15 +92,16 @@ export function useBatchLibrary(online: boolean): BatchLibrary {
     if (!engines.length) return;
     const current = engines.find((engine) => engine.name === engineName);
     if (!current?.is_available) {
-      const preferred = engines.find((engine) => engine.is_available) ?? engines[0];
+      const preferred = engines.find((engine) => engine.is_available);
       if (preferred && preferred.name !== engineName) setEngineName(preferred.name);
     }
   }, [engines, engineName]);
 
-  const activeEngine = useMemo(
-    () => engines.find((engine) => engine.name === engineName) ?? engines[0],
-    [engineName, engines],
-  );
+  // Only an installed engine can be active; undefined means none is installed yet.
+  const activeEngine = useMemo(() => {
+    const available = engines.filter((engine) => engine.is_available);
+    return available.find((engine) => engine.name === engineName) ?? available[0];
+  }, [engineName, engines]);
 
   return {
     voices,

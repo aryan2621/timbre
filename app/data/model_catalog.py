@@ -12,6 +12,10 @@ downloaded only when every listed file is present (no ``.part`` files).
 
 from __future__ import annotations
 
+import json
+import os
+import platform
+import sys
 from pathlib import Path
 
 from app.data.models import ModelFile, ModelMetadata
@@ -21,9 +25,20 @@ _ACE_STEP = "https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/main"
 _STABLE_AUDIO = "https://huggingface.co/stabilityai/stable-audio-open-1.0/resolve/main"
 _POCKET = "https://huggingface.co/kyutai/pocket-tts/resolve/db04f0e653473e5c7333c69686ac92b7460b0c1d/languages/english_2026-10"
 _POCKET_TOKENIZER = "https://huggingface.co/kyutai/pocket-tts-without-voice-cloning/resolve/00eac05ed3d16bdc3f6b5d598874019c34a89214/languages/english_2026-09"
-_AUDIOLDM = "https://huggingface.co/cvssp/audioldm-s-full-v2/resolve/main"
+_MG_MEDIUM = "https://huggingface.co/facebook/musicgen-medium/resolve/main"
+_MG_LARGE = "https://huggingface.co/facebook/musicgen-large/resolve/main"
+_MG_MELODY = "https://huggingface.co/facebook/musicgen-melody/resolve/main"
 _MUSICGEN = "https://huggingface.co/facebook/musicgen-small/resolve/main"
 _QWEN = "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main"
+_KOKORO = "https://huggingface.co/mlx-community/Kokoro-82M-bf16/resolve/a71e4d38b236d968966a2002c4c895dbd12b1c3c"
+_QWEN_TTS_06B = "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16/resolve/1eccf1cb2519b5a4e8a95b5f0544f3303568164f"
+_QWEN_TTS_17B = "https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16/resolve/a6eb4f68e4b056f1215157bb696209bc82a6db48"
+_ZONOS3 = "https://huggingface.co/mlx-community/ZONOS3-Mini/resolve/c3b1320037be83fdbe57586bd6678573de1789f4"
+_F5 = "https://huggingface.co/SWivid/F5-TTS/resolve/main/F5TTS_v1_Base"
+_VOCOS = "https://huggingface.co/charactr/vocos-mel-24khz/resolve/main"
+_SAO_SMALL = "https://huggingface.co/stabilityai/stable-audio-open-small/resolve/main"
+_T5_BASE = "https://huggingface.co/google-t5/t5-base/resolve/main"
+_WOOF = "https://huggingface.co/ConwayResearch/Underdog-Woof/resolve/be702960539777fc3f698e54335276a8391b00f9"
 _WHISPER = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 
 CATALOG_MODELS: list[ModelMetadata] = [
@@ -76,6 +91,197 @@ CATALOG_MODELS: list[ModelMetadata] = [
                       "9b9ff07e60b20c136e2b1b3d7563a24604e8d2c4c267888d1ee929dd0151d2a3"),
             ModelFile("grapheme_mtl_merged_expanded_v1.json", f"{_CHATTERBOX}/grapheme_mtl_merged_expanded_v1.json", 69_989, ""),
             ModelFile("Cangjie5_TC.json", f"{_CHATTERBOX}/Cangjie5_TC.json", 1_920_163, ""),
+        ],
+    ),
+    ModelMetadata(
+        id="kokoro-82m",
+        name="Kokoro 82M",
+        version="1.0",
+        license_name="Apache 2.0",
+        commercial_allowed=True,
+        license_notice="Small, fast preset-voice speech model (no cloning), English. Runs through the bundled MLX engine, so Apple Silicon only.",
+        total_bytes=332_340_703,
+        local_dir="kokoro-82m",
+        category="voice-cloning",
+        min_memory_gb=2.0,
+        gpu_recommended=True,
+        files=[
+            ModelFile("config.json", f"{_KOKORO}/config.json", 2_351, ""),
+            ModelFile("kokoro-v1_0.safetensors", f"{_KOKORO}/kokoro-v1_0.safetensors", 327_115_152, "4e9ecdf03b8b6cf906070390237feda473dc13327cb8d56a43deaa374c02acd8"),
+            ModelFile("voices/af_heart.safetensors", f"{_KOKORO}/voices/af_heart.safetensors", 522_320, "2c1c733b0e6576c810e268d3e440c21dea4e0f0131a3ba4cfc98d7fe6136d094"),
+            ModelFile("voices/af_bella.safetensors", f"{_KOKORO}/voices/af_bella.safetensors", 522_320, "112d310468cbb3cf23404d3d0b50ad3adf017b87bf38bf9edd15f4ad572df6a3"),
+            ModelFile("voices/af_nicole.safetensors", f"{_KOKORO}/voices/af_nicole.safetensors", 522_320, "574656386022c81a029e9a72558191925f44c3de2dad2fa2e45751938557d062"),
+            ModelFile("voices/af_sarah.safetensors", f"{_KOKORO}/voices/af_sarah.safetensors", 522_320, "4940072182542f54c1035d1daf4c1cf3136ca9baa9ac57c8e006b4befcc50be6"),
+            ModelFile("voices/af_sky.safetensors", f"{_KOKORO}/voices/af_sky.safetensors", 522_320, "957af332330db8e9bd7f9dc449475a946cb0d7d689afef64b91007bbbf20eaa0"),
+            ModelFile("voices/am_adam.safetensors", f"{_KOKORO}/voices/am_adam.safetensors", 522_320, "a4f60a3b9c20353c2604a17485ba53260502a758681a84d41e8af53cc559d929"),
+            ModelFile("voices/am_michael.safetensors", f"{_KOKORO}/voices/am_michael.safetensors", 522_320, "3940147ded35deba0bb52e8132f89b719298e0520258c34584358aa5a24da2ea"),
+            ModelFile("voices/bf_emma.safetensors", f"{_KOKORO}/voices/bf_emma.safetensors", 522_320, "8878a75a6661305849eeb1d6293a7177250193616e161b4c3100636434dfe69f"),
+            ModelFile("voices/bf_isabella.safetensors", f"{_KOKORO}/voices/bf_isabella.safetensors", 522_320, "f7b6076f025649699fcfed1a6debf13049a87afdc7aafc8c72b7d81246db6ead"),
+            ModelFile("voices/bm_george.safetensors", f"{_KOKORO}/voices/bm_george.safetensors", 522_320, "a3d9b8995cbbe5536f954b6be2a0f1f312f077118ba0d4d2178fc41dc8306672"),
+        ],
+    ),
+    ModelMetadata(
+        id="qwen3-tts-0.6b",
+        name="Qwen3-TTS 0.6B",
+        version="12Hz Base",
+        license_name="Apache 2.0",
+        commercial_allowed=True,
+        license_notice="Lighter Qwen3-TTS voice cloner. Clones a voice from a short clip plus its transcript (made automatically with a Whisper model). Multilingual. Runs through the bundled MLX engine, so Apple Silicon only.",
+        total_bytes=2_516_140_464,
+        local_dir="qwen3-tts-0.6b",
+        category="voice-cloning",
+        min_memory_gb=6.0,
+        gpu_recommended=True,
+        files=[
+            ModelFile("config.json", f"{_QWEN_TTS_06B}/config.json", 5_317, ""),
+            ModelFile("generation_config.json", f"{_QWEN_TTS_06B}/generation_config.json", 245, ""),
+            ModelFile("merges.txt", f"{_QWEN_TTS_06B}/merges.txt", 1_671_839, ""),
+            ModelFile("model.safetensors", f"{_QWEN_TTS_06B}/model.safetensors", 1_829_344_448, "d7c7ed3e3464e3e59de0f955b3755891fa8319ff061c3f0307fe2e1343bc122d"),
+            ModelFile("model.safetensors.index.json", f"{_QWEN_TTS_06B}/model.safetensors.index.json", 38_573, ""),
+            ModelFile("preprocessor_config.json", f"{_QWEN_TTS_06B}/preprocessor_config.json", 127, ""),
+            ModelFile("speech_tokenizer/config.json", f"{_QWEN_TTS_06B}/speech_tokenizer/config.json", 2_336, ""),
+            ModelFile("speech_tokenizer/configuration.json", f"{_QWEN_TTS_06B}/speech_tokenizer/configuration.json", 76, ""),
+            ModelFile("speech_tokenizer/model.safetensors", f"{_QWEN_TTS_06B}/speech_tokenizer/model.safetensors", 682_293_092, "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258"),
+            ModelFile("speech_tokenizer/preprocessor_config.json", f"{_QWEN_TTS_06B}/speech_tokenizer/preprocessor_config.json", 234, ""),
+            ModelFile("tokenizer_config.json", f"{_QWEN_TTS_06B}/tokenizer_config.json", 7_344, ""),
+            ModelFile("vocab.json", f"{_QWEN_TTS_06B}/vocab.json", 2_776_833, ""),
+        ],
+    ),
+    ModelMetadata(
+        id="qwen3-tts-1.7b",
+        name="Qwen3-TTS 1.7B",
+        version="12Hz Base",
+        license_name="Apache 2.0",
+        commercial_allowed=True,
+        license_notice="Higher-quality Qwen3-TTS voice cloner. Clones a voice from a short clip plus its transcript (made automatically with a Whisper model). Multilingual. Runs through the bundled MLX engine, so Apple Silicon only.",
+        total_bytes=4_544_210_194,
+        local_dir="qwen3-tts-1.7b",
+        category="voice-cloning",
+        min_memory_gb=10.0,
+        gpu_recommended=True,
+        files=[
+            ModelFile("config.json", f"{_QWEN_TTS_17B}/config.json", 5_317, ""),
+            ModelFile("generation_config.json", f"{_QWEN_TTS_17B}/generation_config.json", 245, ""),
+            ModelFile("merges.txt", f"{_QWEN_TTS_17B}/merges.txt", 1_671_839, ""),
+            ModelFile("model.safetensors", f"{_QWEN_TTS_17B}/model.safetensors", 3_857_414_009, "81fb76175ff74e69be25fef2cc3e54f016df3034f1514c8e1c89da06a3510cff"),
+            ModelFile("model.safetensors.index.json", f"{_QWEN_TTS_17B}/model.safetensors.index.json", 38_742, ""),
+            ModelFile("preprocessor_config.json", f"{_QWEN_TTS_17B}/preprocessor_config.json", 127, ""),
+            ModelFile("speech_tokenizer/config.json", f"{_QWEN_TTS_17B}/speech_tokenizer/config.json", 2_336, ""),
+            ModelFile("speech_tokenizer/configuration.json", f"{_QWEN_TTS_17B}/speech_tokenizer/configuration.json", 76, ""),
+            ModelFile("speech_tokenizer/model.safetensors", f"{_QWEN_TTS_17B}/speech_tokenizer/model.safetensors", 682_293_092, "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258"),
+            ModelFile("speech_tokenizer/preprocessor_config.json", f"{_QWEN_TTS_17B}/speech_tokenizer/preprocessor_config.json", 234, ""),
+            ModelFile("tokenizer_config.json", f"{_QWEN_TTS_17B}/tokenizer_config.json", 7_344, ""),
+            ModelFile("vocab.json", f"{_QWEN_TTS_17B}/vocab.json", 2_776_833, ""),
+        ],
+    ),
+    ModelMetadata(
+        id="zonos3-mini",
+        name="ZONOS3 Mini",
+        version="3",
+        license_name="Apache 2.0",
+        commercial_allowed=True,
+        license_notice="Zyphra's multilingual 100M-active-parameter voice model: 27 built-in voices plus cloning from a short clip, no transcript needed, 44.1 kHz. Runs through the bundled MLX engine, so Apple Silicon only.",
+        total_bytes=1_408_903_393,
+        local_dir="zonos3-mini",
+        category="voice-cloning",
+        min_memory_gb=4.0,
+        gpu_recommended=True,
+        files=[
+            ModelFile("codec/config.json", f"{_ZONOS3}/codec/config.json", 33_751, ""),
+            ModelFile("codec/model.safetensors", f"{_ZONOS3}/codec/model.safetensors", 452_335_255, "1848f4160413d75f7e01bf2919bf23671f97fc0d2fb397c575a0a1ce18a2e9b6"),
+            ModelFile("config.json", f"{_ZONOS3}/config.json", 30_333, ""),
+            ModelFile("conversion.json", f"{_ZONOS3}/conversion.json", 790, ""),
+            ModelFile("model.safetensors", f"{_ZONOS3}/model.safetensors", 909_979_244, "43c056e279153165c91ba691f030d2034bcbb23a760039e6f121fe409245ec66"),
+            ModelFile("speaker_encoder/config.json", f"{_ZONOS3}/speaker_encoder/config.json", 123_071, ""),
+            ModelFile("speaker_encoder/frontend.npz", f"{_ZONOS3}/speaker_encoder/frontend.npz", 388_670, "523924d33714caf18dbcb5b5a2c2cf9f46afcdfc2889675a726363bde7715a5b"),
+            ModelFile("speaker_encoder/model.safetensors", f"{_ZONOS3}/speaker_encoder/model.safetensors", 45_423_622, "81e16f0ff71e7305bb43437cc83a2eb8508638901ad30d3da0d7be89ac410deb"),
+            ModelFile("tokenizer.json", f"{_ZONOS3}/tokenizer.json", 559_287, ""),
+            ModelFile("voices.json", f"{_ZONOS3}/voices.json", 1_290, ""),
+            ModelFile("voices/Ananya_hi_F_1.embedding.npz", f"{_ZONOS3}/voices/Ananya_hi_F_1.embedding.npz", 1_040, "96f93e89e3da2066ace97bbb0d6634e1b627a01ffb163571ba0846c433828e9f"),
+            ModelFile("voices/Arjun_hi_M_1.embedding.npz", f"{_ZONOS3}/voices/Arjun_hi_M_1.embedding.npz", 1_040, "02cfa4797a69865d094e0aa54f286e1f8f8b946d967dd5dd066a9b2558b5fbe8"),
+            ModelFile("voices/Chaitanya_te_M_1.embedding.npz", f"{_ZONOS3}/voices/Chaitanya_te_M_1.embedding.npz", 1_040, "4cece7d76ee433577f7d6a7bfbc4d78a8fc97372625251a7c34335a3434ed2b6"),
+            ModelFile("voices/Cillian_en-Irish_M_1.embedding.npz", f"{_ZONOS3}/voices/Cillian_en-Irish_M_1.embedding.npz", 1_040, "85b02d5eb3c49cc990b779cfaf08a895746e4f41adf9eae3bc8cd6f8dd825d75"),
+            ModelFile("voices/Gaspard_fr_M_1.embedding.npz", f"{_ZONOS3}/voices/Gaspard_fr_M_1.embedding.npz", 1_040, "d9ded858cf7f30693ceba01cf2ef0a9bde77585f7b635d009375adcffb35520f"),
+            ModelFile("voices/Ginevra_it_F_1.embedding.npz", f"{_ZONOS3}/voices/Ginevra_it_F_1.embedding.npz", 1_040, "7d483d2d3d4bf7b82c6f97a6e74c6ac33560d371e7d695145d16ea82fbe29f39"),
+            ModelFile("voices/Haoran_zh-energetic_M_1.embedding.npz", f"{_ZONOS3}/voices/Haoran_zh-energetic_M_1.embedding.npz", 1_040, "48e015f07f50cdd4aa2894f6e1182344042cded0210ce658d407af1c5e7f4a9a"),
+            ModelFile("voices/Imogen_en-British_F_1.embedding.npz", f"{_ZONOS3}/voices/Imogen_en-British_F_1.embedding.npz", 1_040, "2f6b7c25d319d29cb3ad994a0190b9a897bbedb019ad7f3201bfd6ee2b740f6e"),
+            ModelFile("voices/Jett_en-energetic_M_1.embedding.npz", f"{_ZONOS3}/voices/Jett_en-energetic_M_1.embedding.npz", 1_040, "cd96714be84028f18a38a1192a2811d1be3e1e23c2cba77e4f57f88afbb54e03"),
+            ModelFile("voices/Leonor_pt_F_1.embedding.npz", f"{_ZONOS3}/voices/Leonor_pt_F_1.embedding.npz", 1_040, "15a8c46ee0ba03a589372f6fe190c874068e8b38b443f4c6d222fa17739e473a"),
+            ModelFile("voices/Liesel_de_F_1.embedding.npz", f"{_ZONOS3}/voices/Liesel_de_F_1.embedding.npz", 1_040, "4020ae38158657da5dd5b27675a860332f21fb4db734b5575b7f42d8f88800bc"),
+            ModelFile("voices/Lorenzo_it_M_1.embedding.npz", f"{_ZONOS3}/voices/Lorenzo_it_M_1.embedding.npz", 1_040, "90428c67659a08277d4d0e6da7af8cb89ba8d237b6cd899f437fef824827c65e"),
+            ModelFile("voices/Meilin_zh-energetic_F_1.embedding.npz", f"{_ZONOS3}/voices/Meilin_zh-energetic_F_1.embedding.npz", 1_040, "51730de15670ea851f159870f944c3d5df8e339fdce74ce43c9536ec8c7ac0d6"),
+            ModelFile("voices/Minjun_ko_M_1.embedding.npz", f"{_ZONOS3}/voices/Minjun_ko_M_1.embedding.npz", 1_040, "61c31b658bafdec9cc3f4b11b1b918a318e4db9f554bc3a25dfa7f88abaf6bbd"),
+            ModelFile("voices/Morgana_en-witch_F_1.embedding.npz", f"{_ZONOS3}/voices/Morgana_en-witch_F_1.embedding.npz", 1_040, "3185e130d990731e51a62007285b8f053d8a4ebc66ca5086c8c5804a3f9f70a1"),
+            ModelFile("voices/Rodrigo_es_M_1.embedding.npz", f"{_ZONOS3}/voices/Rodrigo_es_M_1.embedding.npz", 1_040, "823fb3b619aca47104bb1dc040f40fc51b944709818390992ae5f3253b3a6408"),
+            ModelFile("voices/Rupert_en-British_M_1.embedding.npz", f"{_ZONOS3}/voices/Rupert_en-British_M_1.embedding.npz", 1_040, "90a00601fee898b7d2c45446849236fd95e92cdcc14694f73b8839e29bd31912"),
+            ModelFile("voices/Sakura_en-anime_F_1.embedding.npz", f"{_ZONOS3}/voices/Sakura_en-anime_F_1.embedding.npz", 1_040, "c42840b3a35ebcade9d13e67d645140da1bfe1888df60f2abf7eeeb545314f14"),
+            ModelFile("voices/Savannah_en-American_F_1.embedding.npz", f"{_ZONOS3}/voices/Savannah_en-American_F_1.embedding.npz", 1_040, "812e02f1f318c0ad4d14280ee06ee4ef80fb0bde6599138762a85821a2db235f"),
+            ModelFile("voices/Seoyeon_ko_F_1.embedding.npz", f"{_ZONOS3}/voices/Seoyeon_ko_F_1.embedding.npz", 1_040, "086febcfacba8351726bdad660aca12aa82a6eeee5877c7ca4f2c901f588c3f2"),
+            ModelFile("voices/Sravya_te_F_1.embedding.npz", f"{_ZONOS3}/voices/Sravya_te_F_1.embedding.npz", 1_040, "06a157102429ebedb6e956d89e68bcd36895372fd7c6e7bec00a826293239216"),
+            ModelFile("voices/Thaddeus_en-announcervoice_M_1.embedding.npz", f"{_ZONOS3}/voices/Thaddeus_en-announcervoice_M_1.embedding.npz", 1_040, "b2b3bc28ed961c100dc35871ee2d4538934412ff9c39692e90023e5067f5404b"),
+            ModelFile("voices/Thiago_pt_M_1.embedding.npz", f"{_ZONOS3}/voices/Thiago_pt_M_1.embedding.npz", 1_040, "abd32f1483c304cfdde7af6ca358d750426cf4fc86e96c1af3b10c0bd20ed784"),
+            ModelFile("voices/Willow_en-asrm_F_1.embedding.npz", f"{_ZONOS3}/voices/Willow_en-asrm_F_1.embedding.npz", 1_040, "6882c57360d3ff6dbc322ed6ea4ddf11369a04dca9592147a5b6a70f09620c38"),
+            ModelFile("voices/Wolfgang_de_M_1.embedding.npz", f"{_ZONOS3}/voices/Wolfgang_de_M_1.embedding.npz", 1_040, "b5c7d23aca415d4d6c8d689b75bc6a728ed5bac167d36a4b1a9a87a81ecf5fca"),
+            ModelFile("voices/Wyatt_en-American_M_1.embedding.npz", f"{_ZONOS3}/voices/Wyatt_en-American_M_1.embedding.npz", 1_040, "67352643017465052ca15d30e6b808b68472f7697ab2dabf274b3875f9477984"),
+            ModelFile("voices/Ximena_es_F_1.embedding.npz", f"{_ZONOS3}/voices/Ximena_es_F_1.embedding.npz", 1_040, "26d14dc343a682dbb1757a918c40f632128f53b1484506f16c3d45b58e8cdfa0"),
+        ],
+    ),
+    ModelMetadata(
+        id="underdog-woof",
+        name="Underdog Woof",
+        version="2026",
+        license_name="Underdog Non-Commercial License 1.0 (credit required)",
+        commercial_allowed=False,
+        license_notice="Tiny English voice (40 MB, two fixed voices: Juno and Mira) that reads numbers, dates and codes naturally and runs on the CPU. Show \"Voice by Underdog Woof\" in anything you publish with it.",
+        total_bytes=40_595_426,
+        local_dir="underdog-woof",
+        category="voice-cloning",
+        min_memory_gb=1.0,
+        files=[
+            ModelFile("woof_int8.npz", f"{_WOOF}/woof_int8.npz", 40_595_426, "d895fbbe84b8f4f461e3e94ab48b1164353b1988ce8d365f5aa8263d0de1203e"),
+        ],
+    ),
+    ModelMetadata(
+        id="f5-tts-v1",
+        name="F5-TTS",
+        version="v1 Base",
+        license_name="CC BY-NC 4.0 (non-commercial)",
+        commercial_allowed=False,
+        license_notice="Flow-matching voice cloner, English and Chinese, very natural prosody. Clones from a 5-12 second clip and its transcript. The weights are non-commercial.",
+        total_bytes=1_402_816_013,
+        local_dir="f5-tts",
+        category="voice-cloning",
+        min_memory_gb=6.0,
+        gpu_recommended=True,
+        files=[
+            ModelFile("model_1250000.safetensors", f"{_F5}/model_1250000.safetensors", 1_348_435_761, "670900fd14e6c458b95da6e9ed317cdb20dbaf7a1c02ac06a05475a9d32b6a38"),
+            ModelFile("vocab.txt", f"{_F5}/vocab.txt", 13_800, ""),
+            ModelFile("vocos/config.yaml", f"{_VOCOS}/config.yaml", 461, ""),
+            ModelFile("vocos/pytorch_model.bin", f"{_VOCOS}/pytorch_model.bin", 54_365_991, "97ec976ad1fd67a33ab2682d29c0ac7df85234fae875aefcc5fb215681a91b2a"),
+        ],
+    ),
+    ModelMetadata(
+        id="stable-audio-open-small",
+        name="Stable Audio Open Small",
+        version="1.0",
+        license_name="Stability AI Community License (free under $1M revenue)",
+        commercial_allowed=True,
+        license_notice="Fast sound effects and short loops, up to 11 seconds, stereo 44.1 kHz. Eight steps instead of fifty, so it renders in a couple of seconds. Gated on Hugging Face: accept the licence on the model page and add your own access token.",
+        total_bytes=2_570_663_588,
+        local_dir="stable-audio-open-small",
+        gated_url="https://huggingface.co/stabilityai/stable-audio-open-small",
+        category="sound",
+        min_memory_gb=6.0,
+        gpu_recommended=True,
+        files=[
+            ModelFile("model.safetensors", f"{_SAO_SMALL}/model.safetensors", 1_676_829_212, ""),
+            ModelFile("model_config.json", f"{_SAO_SMALL}/model_config.json", 5_622, ""),
+            # The text encoder it conditions on (t5-base, Apache-2.0), kept local so nothing downloads at run time.
+            ModelFile("t5-base/config.json", f"{_T5_BASE}/config.json", 1_208, ""),
+            ModelFile("t5-base/generation_config.json", f"{_T5_BASE}/generation_config.json", 147, ""),
+            ModelFile("t5-base/model.safetensors", f"{_T5_BASE}/model.safetensors", 891_646_390, "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4"),
+            ModelFile("t5-base/spiece.model", f"{_T5_BASE}/spiece.model", 791_656, ""),
+            ModelFile("t5-base/tokenizer.json", f"{_T5_BASE}/tokenizer.json", 1_389_353, ""),
         ],
     ),
     ModelMetadata(
@@ -249,36 +455,6 @@ CATALOG_MODELS: list[ModelMetadata] = [
         ],
     ),
     ModelMetadata(
-        id="audioldm-s",
-        name="AudioLDM",
-        version="s-full-v2",
-        license_name="CC BY-NC-SA 4.0",
-        commercial_allowed=False,
-        license_notice="Quick sound effects from a text description, up to 40 seconds. Non-commercial use only.",
-        total_bytes=1687448107,
-        local_dir="audioldm-s",
-        category="sound",
-        min_memory_gb=4.0,
-        gpu_recommended=True,
-        files=[
-            ModelFile("model_index.json", f"{_AUDIOLDM}/model_index.json", 462, ""),
-            ModelFile("scheduler/scheduler_config.json", f"{_AUDIOLDM}/scheduler/scheduler_config.json", 439, ""),
-            ModelFile("text_encoder/config.json", f"{_AUDIOLDM}/text_encoder/config.json", 843, ""),
-            ModelFile("text_encoder/model.safetensors", f"{_AUDIOLDM}/text_encoder/model.safetensors", 501241456, "c92b5a2bee69ff5dd05820d9e0a5cddbc9c9b9dd19a6cb3214f0cf4f29a4d1b0"),
-            ModelFile("tokenizer/merges.txt", f"{_AUDIOLDM}/tokenizer/merges.txt", 456356, ""),
-            ModelFile("tokenizer/special_tokens_map.json", f"{_AUDIOLDM}/tokenizer/special_tokens_map.json", 280, ""),
-            ModelFile("tokenizer/tokenizer.json", f"{_AUDIOLDM}/tokenizer/tokenizer.json", 2108746, ""),
-            ModelFile("tokenizer/tokenizer_config.json", f"{_AUDIOLDM}/tokenizer/tokenizer_config.json", 424, ""),
-            ModelFile("tokenizer/vocab.json", f"{_AUDIOLDM}/tokenizer/vocab.json", 798293, ""),
-            ModelFile("unet/config.json", f"{_AUDIOLDM}/unet/config.json", 1300, ""),
-            ModelFile("unet/diffusion_pytorch_model.safetensors", f"{_AUDIOLDM}/unet/diffusion_pytorch_model.safetensors", 740228912, "fc30d5b5a3bb8d08672736efb1fff10755ba7024dace39b2dcb579a105aa2a5a"),
-            ModelFile("vae/config.json", f"{_AUDIOLDM}/vae/config.json", 534, ""),
-            ModelFile("vae/diffusion_pytorch_model.safetensors", f"{_AUDIOLDM}/vae/diffusion_pytorch_model.safetensors", 221530316, "42f64f7565b23eabde68c9694e39f18b8bba5f7a14f477e7ed4b51e0ea7de8a5"),
-            ModelFile("vocoder/config.json", f"{_AUDIOLDM}/vocoder/config.json", 654, ""),
-            ModelFile("vocoder/model.safetensors", f"{_AUDIOLDM}/vocoder/model.safetensors", 221079092, "d9dc6513c30a5b86c2497712690c04fe74b4aa79fdab6d490b34fcb4e24c590c"),
-        ],
-    ),
-    ModelMetadata(
         id="musicgen-small",
         name="MusicGen small",
         version="1.0",
@@ -302,7 +478,132 @@ CATALOG_MODELS: list[ModelMetadata] = [
             ModelFile("tokenizer_config.json", f"{_MUSICGEN}/tokenizer_config.json", 2366, ""),
         ],
     ),
+    ModelMetadata(
+        id="musicgen-medium",
+        name="MusicGen medium",
+        version="1.0",
+        license_name="CC BY-NC 4.0",
+        commercial_allowed=False,
+        license_notice="Better music than small: 1.5B parameters, up to 40 seconds. Non-commercial use only. Needs a lot of memory and renders slowly.",
+        total_bytes=8281580203,
+        local_dir="musicgen-medium",
+        category="music",
+        min_memory_gb=12.0,
+        gpu_recommended=True,
+        files=[
+            ModelFile("compression_state_dict.bin", f"{_MG_MEDIUM}/compression_state_dict.bin", 236001935, "37d256b525d4117f8bbf790ab448a8e9f4746cd401900fe1ae72e154b1513a30"),
+            ModelFile("config.json", f"{_MG_MEDIUM}/config.json", 7866, ""),
+            ModelFile("generation_config.json", f"{_MG_MEDIUM}/generation_config.json", 224, ""),
+            ModelFile("preprocessor_config.json", f"{_MG_MEDIUM}/preprocessor_config.json", 275, ""),
+            ModelFile("special_tokens_map.json", f"{_MG_MEDIUM}/special_tokens_map.json", 2201, ""),
+            ModelFile("spiece.model", f"{_MG_MEDIUM}/spiece.model", 791656, "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86"),
+            ModelFile("tokenizer.json", f"{_MG_MEDIUM}/tokenizer.json", 2422095, ""),
+            ModelFile("tokenizer_config.json", f"{_MG_MEDIUM}/tokenizer_config.json", 2366, ""),
+            ModelFile("pytorch_model.bin", f"{_MG_MEDIUM}/pytorch_model.bin", 8042351585, "b51b0ec25096748bb9a86bf37e41b487024ab2b7077d26cc9e007525f47cd189"),
+        ],
+    ),
+    ModelMetadata(
+        id="musicgen-large",
+        name="MusicGen large",
+        version="1.0",
+        license_name="CC BY-NC 4.0",
+        commercial_allowed=False,
+        license_notice="The best MusicGen quality: 3.3B parameters, up to 40 seconds. Non-commercial. Needs 24 GB or more and renders slowly.",
+        total_bytes=13958763040,
+        local_dir="musicgen-large",
+        category="music",
+        min_memory_gb=24.0,
+        gpu_recommended=True,
+        files=[
+            ModelFile("compression_state_dict.bin", f"{_MG_LARGE}/compression_state_dict.bin", 236001935, "37d256b525d4117f8bbf790ab448a8e9f4746cd401900fe1ae72e154b1513a30"),
+            ModelFile("config.json", f"{_MG_LARGE}/config.json", 7866, ""),
+            ModelFile("generation_config.json", f"{_MG_LARGE}/generation_config.json", 224, ""),
+            ModelFile("preprocessor_config.json", f"{_MG_LARGE}/preprocessor_config.json", 275, ""),
+            ModelFile("special_tokens_map.json", f"{_MG_LARGE}/special_tokens_map.json", 2201, ""),
+            ModelFile("spiece.model", f"{_MG_LARGE}/spiece.model", 791656, "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86"),
+            ModelFile("tokenizer.json", f"{_MG_LARGE}/tokenizer.json", 2422095, ""),
+            ModelFile("tokenizer_config.json", f"{_MG_LARGE}/tokenizer_config.json", 2366, ""),
+            ModelFile("pytorch_model.bin.index.json", f"{_MG_LARGE}/pytorch_model.bin.index.json", 98104, ""),
+            ModelFile("pytorch_model-00001-of-00002.bin", f"{_MG_LARGE}/pytorch_model-00001-of-00002.bin", 9987827539, "a7ed8a0d95eff206263d1ae62955a7b8a7dab11a6b55e953887aea6ed54f85bd"),
+            ModelFile("pytorch_model-00002-of-00002.bin", f"{_MG_LARGE}/pytorch_model-00002-of-00002.bin", 3731608779, "f9923d2947297a9883404abfd4041a32cf486c763d36e00eb4f178823bf6bdac"),
+        ],
+    ),
+    ModelMetadata(
+        id="musicgen-melody",
+        name="MusicGen melody",
+        version="1.0",
+        license_name="CC BY-NC 4.0",
+        commercial_allowed=False,
+        license_notice="1.5B parameters tuned for following a melody; here it takes text prompts. Non-commercial use only.",
+        total_bytes=6468965679,
+        local_dir="musicgen-melody",
+        category="music",
+        min_memory_gb=12.0,
+        gpu_recommended=True,
+        files=[
+            ModelFile("compression_state_dict.bin", f"{_MG_MELODY}/compression_state_dict.bin", 236001935, "37d256b525d4117f8bbf790ab448a8e9f4746cd401900fe1ae72e154b1513a30"),
+            ModelFile("config.json", f"{_MG_MELODY}/config.json", 7781, ""),
+            ModelFile("generation_config.json", f"{_MG_MELODY}/generation_config.json", 224, ""),
+            ModelFile("preprocessor_config.json", f"{_MG_MELODY}/preprocessor_config.json", 369, ""),
+            ModelFile("special_tokens_map.json", f"{_MG_MELODY}/special_tokens_map.json", 2201, ""),
+            ModelFile("spiece.model", f"{_MG_MELODY}/spiece.model", 791656, "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86"),
+            ModelFile("tokenizer.json", f"{_MG_MELODY}/tokenizer.json", 2422346, ""),
+            ModelFile("tokenizer_config.json", f"{_MG_MELODY}/tokenizer_config.json", 20794, ""),
+            ModelFile("model.safetensors.index.json", f"{_MG_MELODY}/model.safetensors.index.json", 68461, ""),
+            ModelFile("model-00001-of-00002.safetensors", f"{_MG_MELODY}/model-00001-of-00002.safetensors", 4966269512, "3deb583fd977128b24f59c86d6706f01b35b4ab8553e8355cca6969a9b7440b4"),
+            ModelFile("model-00002-of-00002.safetensors", f"{_MG_MELODY}/model-00002-of-00002.safetensors", 1263380400, "01268b3a5f9819026a9ee6b76df35574e7dd521de3e6431c7fad16b44ce5a9c0"),
+        ],
+    ),
 ]
+
+
+def _host_triple() -> str:
+    machine = platform.machine().lower()
+    arch = "aarch64" if machine in ("arm64", "aarch64") else "x86_64"
+    if sys.platform == "darwin":
+        return f"{arch}-apple-darwin"
+    return f"{arch}-pc-windows-msvc" if os.name == "nt" else f"{arch}-unknown-linux-gnu"
+
+
+def _engine_models() -> list[ModelMetadata]:
+    """Bundled-engine servers offered as downloads, from engines.json (written by publish-engines.py)."""
+    manifest = json.loads((Path(__file__).with_name("engines.json")).read_text(encoding="utf-8"))
+    base = os.environ.get("TIMBRE_ENGINE_BASE_URL", manifest["base_url"]).rstrip("/")
+    return [
+        ModelMetadata(
+            id=engine["id"],
+            name=engine["name"],
+            version=engine["version"],
+            license_name="Bundled engine (see THIRD_PARTY_LICENSES.md)",
+            commercial_allowed=True,
+            license_notice=engine["notice"],
+            total_bytes=engine["size"],
+            local_dir=f"engines/{engine['binary']}",
+            category="engine",
+            min_memory_gb=engine["min_memory_gb"],
+            executable=True,
+            files=[ModelFile(engine["binary"], f"{base}/{engine['binary']}-{engine['triple']}", engine["size"], engine["sha256"])],
+        )
+        for engine in manifest["engines"]
+        if engine["triple"] == _host_triple()
+    ]
+
+
+CATALOG_MODELS.extend(_engine_models())
+
+_ENGINE_FOR = {
+    "kokoro-82m": "engine-mlx-audio",
+    "qwen3-tts-0.6b": "engine-mlx-audio",
+    "qwen3-tts-1.7b": "engine-mlx-audio",
+    "zonos3-mini": "engine-mlx-audio",
+    "stable-audio-open-small": "engine-sfx",
+}
+_ENGINE_IDS = {m.id for m in CATALOG_MODELS if m.category == "engine"}
+# Where the engine is not offered (other platforms) these models cannot run, so they are not listed.
+CATALOG_MODELS[:] = [m for m in CATALOG_MODELS if m.id not in _ENGINE_FOR or _ENGINE_FOR[m.id] in _ENGINE_IDS]
+for _model in CATALOG_MODELS:
+    if _model.id in _ENGINE_FOR:
+        _model.requires_engine = _ENGINE_FOR[_model.id]
 
 
 def model_local_path(model: ModelMetadata, models_dir: Path) -> Path:
