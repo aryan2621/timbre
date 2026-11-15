@@ -9,6 +9,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { ExportDialog } from "@/components/export-dialog";
 import { EngineLoader } from "@/components/app-shell/engine-loader";
 import { AppProvider, useApp } from "@/lib/app-context";
@@ -113,9 +114,19 @@ function Shell() {
     setVisited((previous) => (previous.includes(page) ? previous : [...previous, page]));
   }, [page]);
 
+  const [closing, setClosing] = useState(false);
+  useEffect(() => {
+    // Only exists inside Tauri; in a plain browser the import or listen simply fails.
+    const unlisten = import("@tauri-apps/api/event")
+      .then(({ listen }) => listen("app-closing", () => setClosing(true)))
+      .catch(() => undefined);
+    return () => void unlisten.then((off) => off?.());
+  }, []);
+
   return (
     <SidebarProvider>
       <EngineLoader show={status === "connecting"} />
+      <LoadingOverlay show={closing} label="Closing Timbre" />
       <AppSidebar
         page={page}
         onNavigate={navigate}

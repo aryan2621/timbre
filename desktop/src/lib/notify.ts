@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { IS_TAURI } from "@/lib/desktop";
 
 const KEY = "timbre.notifyWhenDone";
@@ -16,6 +17,8 @@ const listeners = new Set<() => void>();
 
 async function permitted(): Promise<boolean> {
   if (IS_TAURI) {
+    const native = await invoke<boolean | null>("notify_authorize");
+    if (native !== null) return native;
     const { isPermissionGranted, requestPermission } = await import("@tauri-apps/plugin-notification");
     return (await isPermissionGranted()) || (await requestPermission()) === "granted";
   }
@@ -48,6 +51,7 @@ export async function notifyDone(title: string, body: string): Promise<void> {
   if (!enabled) return;
   try {
     if (IS_TAURI) {
+      if (await invoke<boolean>("notify_native", { title, body })) return;
       const { sendNotification } = await import("@tauri-apps/plugin-notification");
       sendNotification({ title, body });
     } else {

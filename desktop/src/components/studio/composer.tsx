@@ -1,6 +1,8 @@
 import { ArrowUp, Bell, BellRing } from "lucide-react";
 import { SoundBars } from "@/components/ui/sound-bars";
 import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
+import { IS_TAURI } from "@/lib/desktop";
 import { forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,7 +37,10 @@ export const Composer = forwardRef<HTMLTextAreaElement, ComposerProps>(function 
   const notify = useNotifyWhenDone();
   const toggleNotify = async () => {
     const ok = await setNotifyWhenDone(!notify);
-    if (!ok) toast.error("Notifications are blocked", { description: "Allow Timbre in system notification settings." });
+    if (!ok) toast.error("Notifications are blocked", {
+        description: "Allow Timbre in system notification settings.",
+        action: IS_TAURI ? { label: "Open settings", onClick: () => void invoke("open_notification_settings") } : undefined,
+      });
   };
   return (
     <div className="space-y-2">
