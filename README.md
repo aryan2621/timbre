@@ -12,7 +12,7 @@ Apple Silicon only. You install nothing else: Python, the model servers and the 
 
 ### What you need
 
-- **Nothing**, for Chatterbox, ACE-Step, MusicGen and all the agent models.
+- **Nothing**, for Chatterbox, ACE-Step, MusicGen and all the agent models. Models download from the **Models** page when you want them; nothing is bundled except the app itself.
 - **A free Hugging Face account**, only for the gated models (Stable Audio Open and Pocket TTS). Accept the licence on the model page, create a read-only token, and paste it on the **Models** page. The token is kept in the system keychain and only sent to huggingface.co. The Models page has a step-by-step dialog.
 - **Microphone access**, only if you record a reference voice or talk to an agent.
 
@@ -22,18 +22,19 @@ Apple Silicon only. You install nothing else: Python, the model servers and the 
 - **Voice cloning:** record or import 5 to 30 seconds of a voice (WAV, FLAC, OGG, MP3) and it speaks your script in that voice. A voice profile needs a consent confirmation, and Chatterbox output carries a Perth watermark. Long scripts render in sentence-sized chunks and start playing after the first one.
 - **Music:** songs with optional lyrics, tempo, key and more.
 - **Sound effects:** describe a sound and render it.
-- **Agents:** talk to a voice agent that listens (Whisper), thinks (a local language model) and answers in a cloned voice. Give each agent an icon and connect it to MCP servers (streamable HTTP) so it can use tools.
+- **Agents:** talk to a voice agent that listens (Whisper), thinks (the built-in language model, or one served by Ollama on your machine) and answers in a cloned voice. Give each agent an icon and connect it to MCP servers (streamable HTTP) so it can use tools.
 - **Batch and History:** render many lines from `.txt`, `.csv` or `.srt`; every render is kept for replay and WAV export.
-- **Models:** one list per category with size, memory needs and a **Use** button that sets the default. It checks your RAM and disk and hides what won't fit.
+- **Models:** one list per category with size, memory needs and a **Use** button that sets the default. Each category has a dropdown. It checks your RAM and disk and hides what won't fit.
 
 ### Models
 
 | Category | Models | Account |
 | --- | --- | --- |
-| Voice cloning | Chatterbox (MIT, 23 languages), Pocket TTS (fast on CPU, English, CC BY 4.0) | Pocket TTS: Hugging Face |
-| Sound effects | Stable Audio Open (up to 47 s) | Stable Audio: Hugging Face |
-| Music | ACE-Step 1.5 (up to 10 min), MusicGen small (up to 40 s, non-commercial) | none |
-| Voice agents | Qwen3 1.7B, 4B and 8B, Gemma 3 4B, Llama 3.1 8B; Whisper base and large v3 turbo | none |
+| Voice cloning | Chatterbox (MIT, 23 languages), Pocket TTS (fast on CPU, English, CC BY 4.0), F5-TTS (English, Chinese, non-commercial), Underdog Woof | Pocket TTS: Hugging Face |
+| Voice cloning, Apple Silicon only | Kokoro, Qwen3-TTS 0.6B and 1.7B, ZONOS3 Mini. They run on a separate engine that the Models page installs with the first of them you download. | none |
+| Sound effects | Stable Audio Open (up to 47 s), Stable Audio Open Small (up to 11 s, Apple Silicon only, installs its own engine) | Stable Audio Open: Hugging Face |
+| Music | ACE-Step 1.5 (up to 10 min), MusicGen small, medium, large and melody (up to 40 s, non-commercial; large needs about 24 GB of memory) | none |
+| Voice agents | Qwen3 1.7B, 4B and 8B, Gemma 3 4B, Llama 3.1 8B; Whisper base and large v3 turbo. An agent can also use any model you have in Ollama. | none |
 
 Every setting a model supports is in the drawer: for example temperature, top-p, repetition penalty and speed for speech, steps, prompt strength and seed for sound, and tempo, key, time signature, vocal language, shift and solver for ACE-Step. Duration limits are set by what each model can do. Check each model's licence before commercial use.
 
