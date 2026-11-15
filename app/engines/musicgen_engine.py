@@ -113,6 +113,7 @@ class MusicGenEngine(SoundEngine):
         from transformers import AutoProcessor, MusicgenForConditionalGeneration, MusicgenMelodyForConditionalGeneration
 
         model_class = MusicgenMelodyForConditionalGeneration if self._spec.melody else MusicgenForConditionalGeneration
+        # shortcut: CPU only; on MPS sampling yields NaN probabilities (benchmarked), revisit on a newer torch.
         self._device = "cpu"
         if progress_callback:
             progress_callback(30.0, f"Loading MusicGen on {self._device.upper()}")

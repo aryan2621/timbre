@@ -88,3 +88,33 @@ def test_engine_loads_never_overlap():
     [t.start() for t in threads]
     [t.join() for t in threads]
     assert peak[0] == 1
+
+
+def test_only_one_engine_stays_loaded():
+    from app.engines.base import Engine
+
+    class _Model(Engine):
+        def __init__(self):
+            self.up = False
+
+        def is_loaded(self):
+            return self.up
+
+        def load_model(self, progress_callback=None):
+            self.up = True
+            return True
+
+        def unload_model(self):
+            self.up = False
+
+    class _A(_Model):
+        pass
+
+    class _B(_Model):
+        pass
+
+    _Model.__abstractmethods__ = _A.__abstractmethods__ = _B.__abstractmethods__ = frozenset()
+    a, b = _A(), _B()
+    a.load_model()
+    b.load_model()
+    assert (a.is_loaded(), b.is_loaded()) == (False, True)

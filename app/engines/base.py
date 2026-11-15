@@ -63,11 +63,36 @@ class SynthesisParameters:
 _LOAD_LOCK = threading.RLock()
 
 
+_resident: list = []
+
+
+def _unload_others(keep) -> None:
+    """Only one operation runs at a time, so only one engine stays in memory. An engine that is
+    mid-render (its lock is held) is skipped rather than waited on, which could deadlock."""
+    for other in list(_resident):
+        if other is keep:
+            continue
+        if not other.is_loaded():
+            _resident.remove(other)
+        elif other.lock.acquire(blocking=False):
+            try:
+                other.unload_model()
+                _resident.remove(other)
+            finally:
+                other.lock.release()
+
+
 def _serialized(load):
     @functools.wraps(load)
-    def wrapper(*args, **kwargs):
+    def wrapper(self, *args, **kwargs):
         with _LOAD_LOCK:
-            return load(*args, **kwargs)
+            if self.is_loaded():
+                return load(self, *args, **kwargs)
+            _unload_others(self)
+            loaded = load(self, *args, **kwargs)
+            if loaded and self not in _resident:
+                _resident.append(self)
+            return loaded
 
     return wrapper
 

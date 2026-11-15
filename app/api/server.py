@@ -109,6 +109,11 @@ app.include_router(api_router)
 
 
 def main() -> None:
+    import multiprocessing
+
+    # A frozen build re-launches itself for multiprocessing helpers (torch, resource tracker); without
+    # this each helper starts a whole second server that loads the models again.
+    multiprocessing.freeze_support()
     import uvicorn
 
     setup_logging(config_manager.config.log_level)

@@ -58,13 +58,15 @@ class EngineRegistry:
             return list(self._engines.values())
 
     def preload(self) -> None:
-        """Loads every engine whose weights are already on disk, so the first job starts at once."""
+        """Loads the first engine whose weights are on disk so the first job starts at once. Only
+        one engine stays in memory (see Engine load policy), so preloading more would just evict it."""
         for engine in self.get_all_engines():
             try:
                 if engine.can_preload() and not engine.is_loaded():
                     with engine.lock:
                         engine.load_model()
                     logger.info("Preloaded engine: %s", engine.name)
+                    return
             except Exception:  # noqa: BLE001 - a failed warm-up must never stop the server
                 logger.warning("Preload failed for %s", engine.name, exc_info=True)
 
