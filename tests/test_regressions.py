@@ -61,3 +61,30 @@ class ImportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_engine_loads_never_overlap():
+    import threading
+    import time
+
+    from app.engines.base import Engine
+
+    active, peak = [0], [0]
+
+    class _Slow(Engine):
+        def load_model(self, progress_callback=None):
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+            time.sleep(0.05)
+            active[0] -= 1
+            return True
+
+    class _Other(_Slow):
+        pass
+
+    _Slow.__abstractmethods__ = _Other.__abstractmethods__ = frozenset()
+
+    threads = [threading.Thread(target=e().load_model) for e in (_Slow, _Other) for _ in range(2)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert peak[0] == 1

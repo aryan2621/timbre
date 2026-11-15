@@ -247,7 +247,8 @@ class ChatterboxEngine(TTSEngine):
                     )
                     self._model = ChatterboxTTS.from_pretrained(device=self._device)
                 logger.info("Loaded native chatterbox neural library.")
-            except ImportError:
+            except ImportError as exc:
+                logger.error("Chatterbox import failed: %s", exc, exc_info=True)
                 logger.error(
                     "The chatterbox package is not installed. "
                     "Install it with: pip install chatterbox-tts"

@@ -4,6 +4,7 @@ Abstract base class and parameter contracts for all pluggable zero-shot TTS engi
 
 from __future__ import annotations
 
+import functools
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -57,6 +58,20 @@ class SynthesisParameters:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
+# transformers/diffusers resolve their lazy submodules without a lock, so two engines loading at
+# once (startup preload + a first job) fail with "cannot import name ...". One load at a time.
+_LOAD_LOCK = threading.RLock()
+
+
+def _serialized(load):
+    @functools.wraps(load)
+    def wrapper(*args, **kwargs):
+        with _LOAD_LOCK:
+            return load(*args, **kwargs)
+
+    return wrapper
+
+
 class Engine(ABC):
     """Lifecycle and metadata shared by every pluggable model engine (speech or sound)."""
 
@@ -80,6 +95,9 @@ class Engine(ABC):
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.lock = threading.RLock()
+        load = cls.__dict__.get("load_model")
+        if load is not None:
+            cls.load_model = _serialized(load)
 
     @property
     @abstractmethod
