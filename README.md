@@ -4,7 +4,7 @@ A local, offline desktop studio for voice cloning, text to speech, music, sound 
 
 ## Install
 
-1. Download the latest `.dmg` from [Releases](https://github.com/aryan2621/voiceclone/releases) and drag Timbre to Applications.
+1. Download the latest `.dmg` from [Releases](https://github.com/aryan2621/timbre/releases) and drag Timbre to Applications.
 2. The app is not signed or notarized (that needs a paid Apple developer account), so macOS warns the first time. Right-click Timbre, choose **Open**, then **Open** again. If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/Timbre.app`.
 3. Open **Models** and download what you want to use. Models download on first use, so you need internet and free disk space once. After that Timbre works offline.
 
@@ -55,7 +55,7 @@ The workflow is `.github/workflows/build-desktop.yml`. It builds on macOS Apple 
 You need Python 3.12, Node 20+ with pnpm, stable Rust, cmake and `libsndfile`.
 
 ```bash
-git clone https://github.com/aryan2621/voiceclone.git && cd voiceclone
+git clone https://github.com/aryan2621/timbre.git && cd voiceclone
 
 python3.12 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
